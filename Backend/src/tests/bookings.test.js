@@ -318,4 +318,212 @@ describe('Booking Confirmation & Idempotency Suite', () => {
     expect(bookingsARes.body.data[0].event.title).toBe('Grand Symphony Concert');
     expect(bookingsARes.body.data[0].seats[0].seatNumber).toBe('A1');
   });
+
+  // Booking Cancellation Suite
+  describe('Booking Cancellation & Seat Reavailability', () => {
+    let bookingId;
+
+    beforeEach(async () => {
+      // User A books seat1
+      const holdRes = await request(app)
+        .post(`/api/events/${event._id}/holds`)
+        .set('Authorization', `Bearer ${userAToken}`)
+        .send({ seatIds: [seat1._id.toString()] });
+
+      const confirmRes = await request(app)
+        .post(`/api/holds/${holdRes.body.data.holdId}/confirm`)
+        .set('Authorization', `Bearer ${userAToken}`);
+
+      bookingId = confirmRes.body.data._id;
+    });
+
+    it('should successfully cancel a confirmed booking and make seats AVAILABLE again', async () => {
+      const cancelRes = await request(app)
+        .post(`/api/bookings/${bookingId}/cancel`)
+        .set('Authorization', `Bearer ${userAToken}`);
+
+      expect(cancelRes.status).toBe(200);
+      expect(cancelRes.body.success).toBe(true);
+      expect(cancelRes.body.data.status).toBe('CANCELLED');
+
+      // Verify seat in DB is now AVAILABLE
+      const seat = await Seat.findById(seat1._id);
+      expect(seat.status).toBe('AVAILABLE');
+      expect(seat.holdId).toBeNull();
+      expect(seat.holdExpiresAt).toBeNull();
+
+      // Verify booking history preserves record as CANCELLED
+      const historyRes = await request(app)
+        .get('/api/bookings/me')
+        .set('Authorization', `Bearer ${userAToken}`);
+
+      expect(historyRes.status).toBe(200);
+      expect(historyRes.body.data.length).toBe(1);
+      expect(historyRes.body.data[0].status).toBe('CANCELLED');
+    });
+
+    it('should allow another user to hold and book the seat after cancellation', async () => {
+      // 1. User A cancels
+      await request(app)
+        .post(`/api/bookings/${bookingId}/cancel`)
+        .set('Authorization', `Bearer ${userAToken}`);
+
+      // 2. User B can now hold seat1
+      const holdBRes = await request(app)
+        .post(`/api/events/${event._id}/holds`)
+        .set('Authorization', `Bearer ${userBToken}`)
+        .send({ seatIds: [seat1._id.toString()] });
+
+      expect(holdBRes.status).toBe(201);
+      expect(holdBRes.body.success).toBe(true);
+
+      // 3. User B confirms booking for seat1
+      const confirmBRes = await request(app)
+        .post(`/api/holds/${holdBRes.body.data.holdId}/confirm`)
+        .set('Authorization', `Bearer ${userBToken}`);
+
+      expect(confirmBRes.status).toBe(201);
+      expect(confirmBRes.body.success).toBe(true);
+
+      // Seat is now booked by User B
+      const seat = await Seat.findById(seat1._id);
+      expect(seat.status).toBe('BOOKED');
+    });
+
+    it('should reject cancellation attempt by User B for User A booking with HTTP 403', async () => {
+      const cancelRes = await request(app)
+        .post(`/api/bookings/${bookingId}/cancel`)
+        .set('Authorization', `Bearer ${userBToken}`);
+
+      expect(cancelRes.status).toBe(403);
+      expect(cancelRes.body.success).toBe(false);
+
+      // Seat remains BOOKED
+      const seat = await Seat.findById(seat1._id);
+      expect(seat.status).toBe('BOOKED');
+    });
+
+    it('should reject duplicate cancellation requests with HTTP 400', async () => {
+      // First cancellation
+      const cancelRes1 = await request(app)
+        .post(`/api/bookings/${bookingId}/cancel`)
+        .set('Authorization', `Bearer ${userAToken}`);
+      expect(cancelRes1.status).toBe(200);
+
+      // Second cancellation
+      const cancelRes2 = await request(app)
+        .post(`/api/bookings/${bookingId}/cancel`)
+        .set('Authorization', `Bearer ${userAToken}`);
+
+      expect(cancelRes2.status).toBe(400);
+      expect(cancelRes2.body.success).toBe(false);
+      expect(cancelRes2.body.message).toMatch(/already been cancelled/i);
+    });
+
+    it('should reject cancellation for invalid or non-existent booking ID', async () => {
+      // Invalid format
+      const invalidRes = await request(app)
+        .post('/api/bookings/invalid-id/cancel')
+        .set('Authorization', `Bearer ${userAToken}`);
+      expect(invalidRes.status).toBe(400);
+
+      // Non-existent ID
+      const notFoundRes = await request(app)
+        .post(`/api/bookings/${event._id}/cancel`) // valid ObjectId but not a booking
+        .set('Authorization', `Bearer ${userAToken}`);
+      expect(notFoundRes.status).toBe(404);
+    });
+
+    it('should also allow cancellation via DELETE /api/bookings/:bookingId/cancel and DELETE /api/bookings/:bookingId', async () => {
+      // User A books seat2
+      const holdRes = await request(app)
+        .post(`/api/events/${event._id}/holds`)
+        .set('Authorization', `Bearer ${userAToken}`)
+        .send({ seatIds: [seat2._id.toString()] });
+
+      const confirmRes = await request(app)
+        .post(`/api/holds/${holdRes.body.data.holdId}/confirm`)
+        .set('Authorization', `Bearer ${userAToken}`);
+
+      const newBookingId = confirmRes.body.data._id;
+
+      // Cancel via DELETE
+      const deleteRes = await request(app)
+        .delete(`/api/bookings/${newBookingId}/cancel`)
+        .set('Authorization', `Bearer ${userAToken}`);
+
+      expect(deleteRes.status).toBe(200);
+      expect(deleteRes.body.success).toBe(true);
+      expect(deleteRes.body.data.status).toBe('CANCELLED');
+
+      const seat2Check = await Seat.findById(seat2._id);
+      expect(seat2Check.status).toBe('AVAILABLE');
+    });
+
+    it('should allow an admin to cancel any booking', async () => {
+      const User = require('../models/User');
+      const jwt = require('jsonwebtoken');
+
+      // Create admin user
+      const adminUser = await User.create({
+        name: 'Admin Boss',
+        email: 'admin_test@example.com',
+        passwordHash: 'dummyHash123',
+        role: 'admin'
+      });
+
+      const secret = process.env.JWT_SECRET || 'super_secret_jwt_key_event_seat_booking_system_2026_xyz';
+      const adminToken = jwt.sign(
+        { id: adminUser._id, email: adminUser.email, name: adminUser.name, role: 'admin' },
+        secret
+      );
+
+      // Admin cancels User A's bookingId
+      const cancelRes = await request(app)
+        .post(`/api/bookings/${bookingId}/cancel`)
+        .set('Authorization', `Bearer ${adminToken}`);
+
+      expect(cancelRes.status).toBe(200);
+      expect(cancelRes.body.success).toBe(true);
+      expect(cancelRes.body.data.status).toBe('CANCELLED');
+    });
+
+    it('should support GET /api/bookings/my and sort newest first', async () => {
+      const myRes = await request(app)
+        .get('/api/bookings/my')
+        .set('Authorization', `Bearer ${userAToken}`);
+
+      expect(myRes.status).toBe(200);
+      expect(myRes.body.success).toBe(true);
+      expect(Array.isArray(myRes.body.data)).toBe(true);
+      expect(myRes.body.data.length).toBeGreaterThan(0);
+      expect(myRes.body.data[0].event).toBeDefined();
+      expect(myRes.body.data[0].seats).toBeDefined();
+    });
+
+    it('should cancel booking via PATCH /api/bookings/:id/cancel', async () => {
+      // User A books seat2
+      const holdRes = await request(app)
+        .post(`/api/events/${event._id}/holds`)
+        .set('Authorization', `Bearer ${userAToken}`)
+        .send({ seatIds: [seat2._id.toString()] });
+
+      const confirmRes = await request(app)
+        .post(`/api/holds/${holdRes.body.data.holdId}/confirm`)
+        .set('Authorization', `Bearer ${userAToken}`);
+
+      const patchBookingId = confirmRes.body.data._id;
+
+      const patchRes = await request(app)
+        .patch(`/api/bookings/${patchBookingId}/cancel`)
+        .set('Authorization', `Bearer ${userAToken}`);
+
+      expect(patchRes.status).toBe(200);
+      expect(patchRes.body.success).toBe(true);
+      expect(patchRes.body.data.status).toBe('CANCELLED');
+
+      const seat2Status = await Seat.findById(seat2._id);
+      expect(seat2Status.status).toBe('AVAILABLE');
+    });
+  });
 });

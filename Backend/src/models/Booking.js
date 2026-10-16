@@ -44,6 +44,10 @@ const bookingSchema = new mongoose.Schema(
       enum: ['CONFIRMED', 'CANCELLED'],
       default: 'CONFIRMED',
       required: true
+    },
+    cancelledAt: {
+      type: Date,
+      default: null
     }
   },
   {

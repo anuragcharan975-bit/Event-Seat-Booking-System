@@ -16,6 +16,27 @@ const getMyBookings = asyncHandler(async (req, res) => {
   });
 });
 
+/**
+ * @route   POST /api/bookings/:bookingId/cancel
+ * @desc    Cancel a confirmed booking and release the seats back to available
+ * @access  Protected
+ */
+const cancelBooking = asyncHandler(async (req, res) => {
+  const bookingId = req.params.bookingId || req.params.id;
+  const booking = await bookingService.cancelBooking({
+    bookingId,
+    userId: req.user.id,
+    userRole: req.user.role || 'user'
+  });
+
+  return res.status(200).json({
+    success: true,
+    message: 'Booking cancelled successfully. Seats have been released.',
+    data: booking
+  });
+});
+
 module.exports = {
-  getMyBookings
+  getMyBookings,
+  cancelBooking
 };

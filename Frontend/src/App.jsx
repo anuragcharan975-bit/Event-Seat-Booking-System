@@ -18,7 +18,11 @@ function App() {
         <Routes>
           <Route path="/" element={<MainLayout />}>
             <Route index element={<Events />} />
-            <Route path="events/:eventId" element={<EventDetails />} />
+            <Route path="events" element={<Events />} />
+            <Route path="events/:category" element={<Events />} />
+            <Route path="events/:category/:slug" element={<EventDetails />} />
+            <Route path="events/id/:eventId" element={<EventDetails />} />
+            <Route path="events/legacy/:eventId" element={<EventDetails />} />
             <Route
               path="my-bookings"
               element={

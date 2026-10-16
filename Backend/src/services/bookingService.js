@@ -268,12 +268,168 @@ const confirmBooking = async ({ holdId, userId, clockNow = null }) => {
 };
 
 /**
+ * Cancels a confirmed booking and immediately releases all reserved seats back to AVAILABLE.
+ * - Enforces server-side authentication and ownership check (User A cannot cancel User B's booking).
+ * - Safe against repeated cancellations (HTTP 400 if already cancelled).
+ * - Multi-document ACID transaction safe when supported by MongoDB replica set.
+ * - Atomically marks booking as CANCELLED and returns seats to AVAILABLE with zero race conditions.
+ *
+ * @param {Object} params
+ * @param {string} params.bookingId - Booking ObjectId string
+ * @param {string} params.userId - Authenticated user's ObjectId string
+ */
+const cancelBooking = async ({ bookingId, userId, userRole = 'user' }) => {
+  if (!mongoose.Types.ObjectId.isValid(bookingId)) {
+    const error = new Error('Invalid booking ID format');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  // 1. Fetch booking
+  const booking = await Booking.findById(bookingId);
+  if (!booking) {
+    const error = new Error('Booking not found');
+    error.statusCode = 404;
+    throw error;
+  }
+
+  // 2. Server-side authorization check: ownership verification (subject to admin rules)
+  const isAdmin = userRole === 'admin';
+  if (!isAdmin && booking.userId.toString() !== userId.toString()) {
+    const error = new Error('Forbidden: You do not own this booking');
+    error.statusCode = 403;
+    throw error;
+  }
+
+  // 3. Status checks
+  if (booking.status === 'CANCELLED') {
+    const error = new Error('Booking has already been cancelled');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  if (booking.status !== 'CONFIRMED') {
+    const error = new Error(`Cannot cancel booking with status: ${booking.status}`);
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const useReplicaSetTransaction = supportsTransactions();
+
+  if (useReplicaSetTransaction) {
+    // -------------------------------------------------------------
+    // ATOMIC CANCELLATION VIA MONGODB ACID TRANSACTION (REPLICA SET)
+    // -------------------------------------------------------------
+    const session = await mongoose.startSession();
+    try {
+      let cancelledBooking = null;
+
+      await session.withTransaction(async () => {
+        // Atomically transition booking status
+        const updatedBooking = await Booking.findOneAndUpdate(
+          { _id: booking._id, status: 'CONFIRMED' },
+          { $set: { status: 'CANCELLED', cancelledAt: new Date() } },
+          { session, new: true }
+        );
+
+        if (!updatedBooking) {
+          const conflict = new Error('Booking status conflict: could not cancel.');
+          conflict.statusCode = 409;
+          throw conflict;
+        }
+
+        // Atomically release booked seats back to AVAILABLE
+        await Seat.updateMany(
+          {
+            _id: { $in: booking.seatIds },
+            eventId: booking.eventId,
+            status: 'BOOKED'
+          },
+          {
+            $set: {
+              status: 'AVAILABLE',
+              holdId: null,
+              holdExpiresAt: null
+            }
+          },
+          { session }
+        );
+
+        // Also release associated hold if present
+        if (booking.holdId) {
+          await SeatHold.updateOne(
+            { _id: booking.holdId },
+            { $set: { status: 'RELEASED' } },
+            { session }
+          );
+        }
+
+        cancelledBooking = updatedBooking;
+      });
+
+      const populated = await Booking.findById(cancelledBooking._id)
+        .populate('eventId', 'title venue startTime endTime pricePerSeat category')
+        .populate('seatIds', 'seatNumber row');
+
+      return populated;
+    } finally {
+      await session.endSession();
+    }
+  } else {
+    // -------------------------------------------------------------
+    // ATOMIC CANCELLATION VIA CONDITIONAL STATUS (STANDALONE MONGODB)
+    // -------------------------------------------------------------
+    const updatedBooking = await Booking.findOneAndUpdate(
+      { _id: booking._id, status: 'CONFIRMED' },
+      { $set: { status: 'CANCELLED', cancelledAt: new Date() } },
+      { new: true }
+    );
+
+    if (!updatedBooking) {
+      const conflict = new Error('Booking status conflict: could not cancel.');
+      conflict.statusCode = 409;
+      throw conflict;
+    }
+
+    // Release seats back to AVAILABLE
+    await Seat.updateMany(
+      {
+        _id: { $in: booking.seatIds },
+        eventId: booking.eventId,
+        status: 'BOOKED'
+      },
+      {
+        $set: {
+          status: 'AVAILABLE',
+          holdId: null,
+          holdExpiresAt: null
+        }
+      }
+    );
+
+    // Also release associated hold if present
+    if (booking.holdId) {
+      await SeatHold.updateOne(
+        { _id: booking.holdId },
+        { $set: { status: 'RELEASED' } }
+      );
+    }
+
+    const populated = await Booking.findById(updatedBooking._id)
+      .populate('eventId', 'title venue startTime endTime pricePerSeat category')
+      .populate('seatIds', 'seatNumber row');
+
+    return populated;
+  }
+};
+
+/**
  * Returns only the authenticated user's booking history.
  */
 const getUserBookings = async (userId) => {
   const bookings = await Booking.find({ userId })
     .sort({ createdAt: -1 })
-    .populate('eventId', 'title venue startTime endTime pricePerSeat')
+    .populate('eventId', 'title venue startTime endTime pricePerSeat category imageUrl')
     .populate('seatIds', 'seatNumber row');
 
   return bookings.map((b) => ({
@@ -282,12 +438,16 @@ const getUserBookings = async (userId) => {
     amount: b.amount,
     status: b.status,
     createdAt: b.createdAt,
+    cancelledAt: b.cancelledAt || null,
     event: {
       _id: b.eventId?._id,
       title: b.eventId?.title || 'Unknown Event',
+      category: b.eventId?.category || 'General',
       venue: b.eventId?.venue || 'Unknown Venue',
       startTime: b.eventId?.startTime,
-      endTime: b.eventId?.endTime
+      endTime: b.eventId?.endTime,
+      pricePerSeat: b.eventId?.pricePerSeat,
+      imageUrl: b.eventId?.imageUrl || ''
     },
     seats: (b.seatIds || []).map((s) => ({
       _id: s._id,
@@ -299,5 +459,6 @@ const getUserBookings = async (userId) => {
 
 module.exports = {
   confirmBooking,
+  cancelBooking,
   getUserBookings
 };

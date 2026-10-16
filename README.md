@@ -626,9 +626,11 @@ Retrieves the authenticated user's confirmed booking history.
         "amount": 3000,
         "status": "CONFIRMED",
         "createdAt": "2026-10-14T11:00:30.000Z",
+        "cancelledAt": null,
         "event": {
           "_id": "670ce45903b4cf71319c5a20",
           "title": "Tech Innovators Summit 2026",
+          "category": "Technology",
           "venue": "Silicon Grand Auditorium, Hall 1",
           "startTime": "2026-10-21T11:00:00.000Z"
         },
@@ -643,7 +645,29 @@ Retrieves the authenticated user's confirmed booking history.
 
 ---
 
-### 9. Active Hold Recovery Endpoints
+### 9. `POST /api/bookings/:bookingId/cancel`
+Cancels an authenticated user's confirmed booking and atomically releases reserved seats back to `AVAILABLE`.
+
+- **Access**: Protected (Requires `Authorization: Bearer <token>`)
+- **Success Response (200 OK)**:
+  ```json
+  {
+    "success": true,
+    "message": "Booking cancelled successfully. Seats have been released.",
+    "data": {
+      "_id": "670ce50203b4cf71319c5b00",
+      "bookingReference": "BK-20261014-9B3E12",
+      "status": "CANCELLED",
+      "cancelledAt": "2026-10-15T12:00:00.000Z"
+    }
+  }
+  ```
+- **Error Response (403 Forbidden)**: Not the owner of this booking.
+- **Error Response (400 Bad Request)**: Booking is already cancelled.
+
+---
+
+### 10. Active Hold Recovery Endpoints
 - `GET /api/events/:eventId/my-hold` (Event specific)
 - `GET /api/holds/active` (Global active hold)
 

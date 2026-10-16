@@ -244,4 +244,84 @@ describe('Seat Hold Management Suite', () => {
     // Expired hold should be treated as AVAILABLE
     expect(seatsMap['A4']).toBe('AVAILABLE');
   });
+
+  // Category Filtering Suite
+  describe('Event Category Filtering', () => {
+    beforeEach(async () => {
+      const now = new Date();
+      await Event.create([
+        {
+          title: 'Jazz Night Live',
+          category: 'Music',
+          description: 'Live jazz music',
+          venue: 'Jazz Bar',
+          startTime: new Date(now.getTime() + 86400000),
+          endTime: new Date(now.getTime() + 90000000),
+          pricePerSeat: 500,
+          totalSeats: 10
+        },
+        {
+          title: 'Ballet Gala',
+          category: 'Dance',
+          description: 'Classical ballet performance',
+          venue: 'Opera House',
+          startTime: new Date(now.getTime() + 86400000 * 2),
+          endTime: new Date(now.getTime() + 86400000 * 2 + 3600000),
+          pricePerSeat: 800,
+          totalSeats: 10
+        },
+        {
+          title: 'Open Mic Standup',
+          category: 'Comedy',
+          description: 'Laugh out loud comedy',
+          venue: 'Comedy Club',
+          startTime: new Date(now.getTime() + 86400000 * 3),
+          endTime: new Date(now.getTime() + 86400000 * 3 + 3600000),
+          pricePerSeat: 400,
+          totalSeats: 10
+        }
+      ]);
+    });
+
+    it('should filter events by exact category Music', async () => {
+      const res = await request(app).get('/api/events?category=Music');
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data.length).toBe(1);
+      expect(res.body.data[0].category).toBe('Music');
+      expect(res.body.data[0].title).toBe('Jazz Night Live');
+    });
+
+    it('should filter events by category Dance', async () => {
+      const res = await request(app).get('/api/events?category=Dance');
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data.length).toBe(1);
+      expect(res.body.data[0].category).toBe('Dance');
+      expect(res.body.data[0].title).toBe('Ballet Gala');
+    });
+
+    it('should match category case-insensitively and handle extra whitespace', async () => {
+      const res = await request(app).get('/api/events?category=%20%20mUsIc%20%20');
+      expect(res.status).toBe(200);
+      expect(res.body.data.length).toBe(1);
+      expect(res.body.data[0].category).toBe('Music');
+    });
+
+    it('should return all events when category is "all" or "All Events"', async () => {
+      const resAll = await request(app).get('/api/events?category=all');
+      expect(resAll.status).toBe(200);
+      expect(resAll.body.data.length).toBeGreaterThanOrEqual(4);
+
+      const resAllEvents = await request(app).get('/api/events?category=All%20Events');
+      expect(resAllEvents.status).toBe(200);
+      expect(resAllEvents.body.data.length).toBeGreaterThanOrEqual(4);
+    });
+
+    it('should return empty list when no events exist in the requested category', async () => {
+      const res = await request(app).get('/api/events?category=Sports');
+      expect(res.status).toBe(200);
+      expect(res.body.data.length).toBe(0);
+    });
+  });
 });

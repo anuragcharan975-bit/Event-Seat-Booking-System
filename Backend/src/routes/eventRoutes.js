@@ -10,8 +10,13 @@ const { requireAuth } = require('../middlewares/authMiddleware');
 router.get('/', eventController.getEvents);
 router.get('/:eventId/seats', validateEventId, validateRequest, eventController.getEventSeats);
 
-// Protected hold endpoints scoped under an event
-router.post('/:eventId/holds', requireAuth, validateCreateHold, validateRequest, holdController.createHold);
+// Protected hold endpoints scoped under an event (using MongoDB ObjectId)
 router.get('/:eventId/my-hold', requireAuth, validateEventId, validateRequest, holdController.getMyActiveHold);
+router.post('/:eventId/holds', requireAuth, validateCreateHold, validateRequest, holdController.createHold);
+
+// SEO-friendly slug endpoints
+router.get('/slug/:category/:slug', eventController.getEventBySlug);
+router.get('/:category/:slug/seats', eventController.getEventBySlug);
+router.get('/:category/:slug', eventController.getEventBySlug);
 
 module.exports = router;

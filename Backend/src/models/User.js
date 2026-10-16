@@ -23,6 +23,11 @@ const userSchema = new mongoose.Schema(
     passwordHash: {
       type: String,
       required: [true, 'Password hash is required']
+    },
+    role: {
+      type: String,
+      enum: ['user', 'admin'],
+      default: 'user'
     }
   },
   {
@@ -43,6 +48,7 @@ userSchema.methods.toSafeObject = function () {
     _id: this._id,
     name: this.name,
     email: this.email,
+    role: this.role || 'user',
     createdAt: this.createdAt,
     updatedAt: this.updatedAt
   };
