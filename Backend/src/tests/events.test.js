@@ -183,4 +183,40 @@ describe('Event Search & Filtering Suite', () => {
     expect(event1.slug).toBe('arijit-singh-concert');
     expect(event2.slug).toBe('arijit-singh-concert-2');
   });
+
+  it('should find events by category name (e.g. "Concert") when searching', async () => {
+    // Acoustic Jazz & Rock Night has category: 'Concert'
+    const res = await request(app).get('/api/events?search=concert');
+    expect(res.status).toBe(200);
+    expect(res.body.data.length).toBeGreaterThanOrEqual(1);
+    expect(res.body.data.some(e => e.title === 'Acoustic Jazz & Rock Night')).toBe(true);
+  });
+
+  it('should find events matching multiple comma-separated terms e.g. "Summit, Concert"', async () => {
+    const res = await request(app).get('/api/events?search=Summit,%20Concert');
+    expect(res.status).toBe(200);
+    expect(res.body.data.length).toBe(2);
+    const titles = res.body.data.map(e => e.title);
+    expect(titles).toContain('DevOps & Cloud Global Summit');
+    expect(titles).toContain('Acoustic Jazz & Rock Night');
+  });
+
+  it('should return all matching events when date parameter is omitted (date optional)', async () => {
+    // Search "Acoustic" without date
+    const res = await request(app).get('/api/events?search=Acoustic');
+    expect(res.status).toBe(200);
+    expect(res.body.data.length).toBe(1);
+    expect(res.body.data[0].title).toBe('Acoustic Jazz & Rock Night');
+  });
+
+  it('should narrow search results when optional date filter is provided', async () => {
+    const dateStr = eventMusic.startTime.toISOString().split('T')[0];
+    const matchRes = await request(app).get(`/api/events?search=Acoustic&date=${dateStr}`);
+    expect(matchRes.status).toBe(200);
+    expect(matchRes.body.data.length).toBe(1);
+
+    const nonMatchRes = await request(app).get('/api/events?search=Acoustic&date=2026-01-01');
+    expect(nonMatchRes.status).toBe(200);
+    expect(nonMatchRes.body.data.length).toBe(0);
+  });
 });

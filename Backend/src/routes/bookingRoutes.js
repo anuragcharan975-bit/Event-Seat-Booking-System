@@ -29,6 +29,11 @@ const validateBookingId = (req, res, next) => {
   next();
 };
 
+const { validateCreateBooking } = require('../validators/bookingValidators');
+
+// Direct booking creation endpoint with full validation
+router.post('/', requireAuth, validateCreateBooking, validateRequest, bookingController.createBooking);
+
 // Get all bookings for authenticated user (supports both /my and /me)
 router.get('/my', requireAuth, bookingController.getMyBookings);
 router.get('/me', requireAuth, bookingController.getMyBookings);

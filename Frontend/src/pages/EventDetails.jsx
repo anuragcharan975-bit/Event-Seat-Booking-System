@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { eventApi } from '../api/eventApi';
 import { holdApi } from '../api/holdApi';
+import { bookingApi } from '../api/bookingApi';
 import { useAuth } from '../context/AuthContext';
 import SeatGrid from '../components/SeatGrid';
 import SeatLegend from '../components/SeatLegend';
@@ -9,6 +10,7 @@ import CountdownTimer from '../components/CountdownTimer';
 import Loading from '../components/Loading';
 import ErrorMessage from '../components/ErrorMessage';
 import ConfirmDialog from '../components/ConfirmDialog';
+import BookingModal from '../components/BookingModal';
 import { formatCurrency } from '../utils/formatCurrency';
 import { formatDate } from '../utils/formatDate';
 import {
@@ -18,11 +20,14 @@ import {
   Clock,
   ShieldCheck,
   AlertCircle,
+  AlertTriangle,
+  XCircle,
   CheckCircle2,
   RefreshCw,
   Tag,
   ArrowLeft,
-  Info
+  Info,
+  Users
 } from 'lucide-react';
 
 const EventDetails = () => {
@@ -43,6 +48,12 @@ const EventDetails = () => {
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
   const [showReleaseDialog, setShowReleaseDialog] = useState(false);
+
+  // Direct Booking Modal States
+  const [showBookingModal, setShowBookingModal] = useState(false);
+  const [isBooking, setIsBooking] = useState(false);
+  const [bookingError, setBookingError] = useState('');
+  const [confirmedBooking, setConfirmedBooking] = useState(null);
 
   // Fetch seats and event details
   const fetchSeatsAndDetails = useCallback(async (isSilent = false) => {
@@ -102,9 +113,17 @@ const EventDetails = () => {
       if (eventMongoId) {
         await restoreActiveHold(eventMongoId);
       }
+      // If the URL category parameter differs from the event's actual canonical categorySlug,
+      // silently correct the URL in the address bar without reloading
+      if (loadedEvent && loadedEvent.categorySlug && category) {
+        const canonicalCat = loadedEvent.categorySlug.toLowerCase();
+        if (category.toLowerCase() !== canonicalCat) {
+          navigate(`/events/${canonicalCat}/${loadedEvent.slug || slug}`, { replace: true });
+        }
+      }
     };
     initialize();
-  }, [fetchSeatsAndDetails, restoreActiveHold, effectiveEventId]);
+  }, [fetchSeatsAndDetails, restoreActiveHold, effectiveEventId, category, slug, navigate]);
 
   // Handle seat toggle
   const handleToggleSeat = (seat) => {
@@ -264,6 +283,13 @@ const EventDetails = () => {
     );
   }
 
+  // Live seats calculations & availability
+  const isPastEvent = event?.startTime ? new Date(event.startTime) <= new Date() : false;
+  const availableSeatsCount = seats.filter((s) => s.status === 'AVAILABLE').length;
+  const totalSeatsCount = event?.totalSeats || seats.length;
+  const isSoldOut = availableSeatsCount === 0;
+  const canBook = !isPastEvent && !isSoldOut;
+
   // Calculate pricing & seat data
   const myHeldSeatIds = activeHold ? activeHold.seats.map((s) => s.id || s._id) : [];
   const selectedSeatCount = activeHold ? myHeldSeatIds.length : selectedSeatIds.length;
@@ -274,6 +300,52 @@ const EventDetails = () => {
   const selectedSeatObjects = activeHold
     ? activeHold.seats
     : seats.filter((s) => selectedSeatIds.includes(s._id));
+
+  // Handle Book Now button click -> Opens BookingModal with summary
+  const handleBookNow = () => {
+    if (!canBook) return;
+
+    if (!isAuthenticated) {
+      const returnPath = category && slug ? `/events/${category}/${slug}` : `/events/${event?._id || effectiveEventId}`;
+      navigate('/login', { state: { from: { pathname: returnPath } } });
+      return;
+    }
+
+    if (selectedSeatIds.length === 0) {
+      setError('Please select at least 1 seat on the grid to book tickets.');
+      return;
+    }
+
+    setBookingError('');
+    setConfirmedBooking(null);
+    setShowBookingModal(true);
+  };
+
+  // Confirm Direct Booking inside BookingModal
+  const handleConfirmDirectBooking = async () => {
+    const currentEventId = event?._id || effectiveEventId;
+    if (!currentEventId || selectedSeatIds.length === 0) return;
+
+    try {
+      setIsBooking(true);
+      setBookingError('');
+
+      const res = await bookingApi.createBooking(currentEventId, selectedSeatIds);
+      if (res.success && res.data) {
+        setConfirmedBooking(res.data);
+        setSelectedSeatIds([]);
+        await fetchSeatsAndDetails(true);
+      }
+    } catch (err) {
+      const msg = err.response?.data?.message || 'Booking confirmation failed. Please try again.';
+      setBookingError(msg);
+      if (err.response?.status === 409 || err.response?.status === 400) {
+        await fetchSeatsAndDetails(true);
+      }
+    } finally {
+      setIsBooking(false);
+    }
+  };
 
   return (
     <div className="space-y-8 animate-fadeIn">
@@ -314,7 +386,7 @@ const EventDetails = () => {
           </div>
         )}
 
-        <div className="p-6 sm:p-8">
+        <div className="p-6 sm:p-8 space-y-6">
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
             <div className="space-y-3 max-w-3xl">
               <div className="flex flex-wrap items-center gap-2">
@@ -325,46 +397,115 @@ const EventDetails = () => {
                   </span>
                 )}
 
-                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 text-xs font-semibold border border-emerald-100">
-                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-                  <span>ACID Atomic Booking</span>
-                </span>
+                {isPastEvent ? (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-rose-50 text-rose-700 text-xs font-semibold border border-rose-200">
+                    <Clock className="w-3.5 h-3.5 text-rose-600" />
+                    <span>Event Ended</span>
+                  </span>
+                ) : isSoldOut ? (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 text-xs font-semibold border border-amber-200">
+                    <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
+                    <span>Sold Out</span>
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 text-xs font-semibold border border-emerald-100">
+                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>Open for Booking</span>
+                  </span>
+                )}
               </div>
 
               <h1 className="text-2xl sm:text-4xl font-black text-slate-900 tracking-tight">
                 {event.title}
               </h1>
 
-            <div className="flex flex-wrap items-center gap-4 text-xs sm:text-sm text-slate-600">
-              <div className="flex items-center gap-1.5">
-                <Calendar className="w-4 h-4 text-sky-600 shrink-0" />
-                <span>{formatDate(event.startTime)}</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <MapPin className="w-4 h-4 text-sky-600 shrink-0" />
-                <span className="truncate">{event.venue}</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <Ticket className="w-4 h-4 text-sky-600 shrink-0" />
-                <span className="font-bold text-slate-900">
-                  {formatCurrency(event.pricePerSeat)}
-                </span>
-                <span className="text-xs text-slate-500">/seat</span>
+              {/* Event Attributes Badges: Date, Venue, Price, Total Seats, Available Seats */}
+              <div className="flex flex-wrap items-center gap-4 text-xs sm:text-sm text-slate-600 pt-1">
+                <div className="flex items-center gap-1.5">
+                  <Calendar className="w-4 h-4 text-sky-600 shrink-0" />
+                  <span>{formatDate(event.startTime)}</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <MapPin className="w-4 h-4 text-sky-600 shrink-0" />
+                  <span className="truncate">{event.venue}</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <Ticket className="w-4 h-4 text-sky-600 shrink-0" />
+                  <span className="font-bold text-slate-900">
+                    {formatCurrency(event.pricePerSeat)}
+                  </span>
+                  <span className="text-xs text-slate-500">/seat</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <Users className="w-4 h-4 text-sky-600 shrink-0" />
+                  <span>
+                    <strong className="text-slate-900">{totalSeatsCount}</strong> total seats
+                  </span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span
+                    className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold ${
+                      availableSeatsCount > 0
+                        ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                        : 'bg-rose-50 text-rose-700 border border-rose-200'
+                    }`}
+                  >
+                    {availableSeatsCount} seats available
+                  </span>
+                </div>
               </div>
             </div>
+
+            <button
+              onClick={() => fetchSeatsAndDetails(false)}
+              title="Refresh availability"
+              className="self-start lg:self-center px-4 py-2 text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition flex items-center gap-2 active:scale-95"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+              <span>Refresh Seat Map</span>
+            </button>
           </div>
 
-          <button
-            onClick={() => fetchSeatsAndDetails(false)}
-            title="Refresh availability"
-            className="self-start lg:self-center px-4 py-2 text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition flex items-center gap-2 active:scale-95"
-          >
-            <RefreshCw className="w-3.5 h-3.5" />
-            <span>Refresh Seat Map</span>
-          </button>
+          {/* About This Event: Event Description */}
+          {event.description && (
+            <div className="pt-4 border-t border-slate-100">
+              <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+                <Info className="w-3.5 h-3.5 text-sky-600" />
+                <span>About This Event</span>
+              </h3>
+              <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-line">
+                {event.description}
+              </p>
+            </div>
+          )}
         </div>
       </div>
-    </div>
+
+      {/* Past Event Banner */}
+      {isPastEvent && (
+        <div className="bg-rose-50 border border-rose-200 text-rose-800 rounded-2xl p-4 flex items-center gap-3 shadow-sm">
+          <XCircle className="w-5 h-5 text-rose-600 shrink-0" />
+          <div>
+            <h4 className="text-sm font-bold text-rose-900">Event Date Passed</h4>
+            <p className="text-xs text-rose-700 mt-0.5">
+              This event occurred on {formatDate(event.startTime)}. Ticket bookings are no longer available.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Sold Out Banner */}
+      {!isPastEvent && isSoldOut && (
+        <div className="bg-amber-50 border border-amber-200 text-amber-800 rounded-2xl p-4 flex items-center gap-3 shadow-sm">
+          <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0" />
+          <div>
+            <h4 className="text-sm font-bold text-amber-900">Sold Out</h4>
+            <p className="text-xs text-amber-700 mt-0.5">
+              All {totalSeatsCount} seats for this event are fully booked. Check our other upcoming events!
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Notification Banners */}
       {error && <ErrorMessage message={error} onRetry={() => fetchSeatsAndDetails(true)} />}
@@ -392,7 +533,9 @@ const EventDetails = () => {
             <div>
               <h2 className="text-lg font-bold text-slate-900">Select Seats</h2>
               <p className="text-xs text-slate-500">
-                Click up to 4 available seats to reserve them for 120 seconds
+                {canBook
+                  ? 'Click up to 4 available seats to book tickets'
+                  : 'Seat selection is closed for this event'}
               </p>
             </div>
             <SeatLegend />
@@ -405,14 +548,14 @@ const EventDetails = () => {
               selectedSeatIds={selectedSeatIds}
               onToggleSeat={handleToggleSeat}
               myHeldSeatIds={myHeldSeatIds}
-              disabled={Boolean(activeHold) || actionLoading}
+              disabled={!canBook || Boolean(activeHold) || actionLoading || isBooking}
             />
           </div>
 
           <div className="flex items-center gap-2 p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-500">
             <Info className="w-4 h-4 text-sky-600 shrink-0" />
             <span>
-              Clicking a seat toggles selection. Once held, your seats are locked for 120 seconds so no other user can book them.
+              Clicking an available seat selects it. Use the Book Now button to review your booking summary and confirm tickets.
             </span>
           </div>
         </div>
@@ -463,6 +606,16 @@ const EventDetails = () => {
                 </span>
               </div>
 
+              {/* Automatic Calculation Formula */}
+              {selectedSeatCount > 0 && (
+                <div className="flex justify-between items-center text-xs text-slate-600 bg-slate-50 px-3 py-2 rounded-xl border border-slate-100">
+                  <span className="font-medium text-slate-500">Auto Calculation:</span>
+                  <span className="font-mono font-bold text-slate-800">
+                    {selectedSeatCount} × {formatCurrency(event.pricePerSeat)} = {formatCurrency(totalPrice)}
+                  </span>
+                </div>
+              )}
+
               <div className="border-t border-slate-100 pt-3 flex justify-between items-center">
                 <div>
                   <span className="text-base font-bold text-slate-900 block">Total Amount</span>
@@ -476,27 +629,56 @@ const EventDetails = () => {
 
             {/* Action Buttons */}
             <div className="space-y-3 pt-2">
-              {!activeHold ? (
-                // Step 1: Hold Seats Button
+              {isPastEvent ? (
                 <button
                   type="button"
-                  onClick={handleHoldSeats}
-                  disabled={selectedSeatIds.length === 0 || actionLoading}
-                  className="w-full py-3.5 px-4 rounded-xl text-sm font-bold text-white bg-sky-600 hover:bg-sky-500 shadow-md shadow-sky-600/20 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed active:scale-98"
+                  disabled
+                  className="w-full py-3.5 px-4 rounded-xl text-sm font-bold text-slate-400 bg-slate-100 border border-slate-200 cursor-not-allowed flex items-center justify-center gap-2"
                 >
-                  {actionLoading ? (
-                    <span className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  ) : (
-                    <>
-                      <Clock className="w-4 h-4" />
-                      <span>
-                        {isAuthenticated
-                          ? `Hold ${selectedSeatCount || ''} Seat${selectedSeatCount === 1 ? '' : 's'} (120s)`
-                          : 'Sign In to Hold Seats'}
-                      </span>
-                    </>
-                  )}
+                  <Clock className="w-4 h-4" />
+                  <span>Event Date Passed</span>
                 </button>
+              ) : isSoldOut ? (
+                <button
+                  type="button"
+                  disabled
+                  className="w-full py-3.5 px-4 rounded-xl text-sm font-bold text-slate-400 bg-slate-100 border border-slate-200 cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  <XCircle className="w-4 h-4" />
+                  <span>Sold Out - No Seats Available</span>
+                </button>
+              ) : !activeHold ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={handleBookNow}
+                    disabled={selectedSeatIds.length === 0 || actionLoading || isBooking}
+                    className="w-full py-3.5 px-4 rounded-xl text-sm font-bold text-white bg-sky-600 hover:bg-sky-500 shadow-md shadow-sky-600/20 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed active:scale-98"
+                  >
+                    {isBooking ? (
+                      <span className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      <>
+                        <Ticket className="w-4 h-4" />
+                        <span>
+                          {selectedSeatCount > 0
+                            ? `Book Now (${formatCurrency(totalPrice)})`
+                            : 'Select Seats to Book'}
+                        </span>
+                      </>
+                    )}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleHoldSeats}
+                    disabled={selectedSeatIds.length === 0 || actionLoading || isBooking}
+                    className="w-full py-2.5 px-4 rounded-xl text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 transition-all flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <Clock className="w-3.5 h-3.5 text-slate-500" />
+                    <span>Hold Seats for 120s First</span>
+                  </button>
+                </>
               ) : (
                 // Step 2: Confirm or Release Held Seats
                 <>
@@ -529,7 +711,7 @@ const EventDetails = () => {
             </div>
 
             <p className="text-[11px] text-slate-400 text-center leading-relaxed">
-              Seats are atomically held for exactly 120 seconds. If confirmation is not completed before expiry, seats are safely returned to availability.
+              Ticket booking provides instant confirmation with atomic seat reservation.
             </p>
           </div>
         </div>
@@ -546,6 +728,29 @@ const EventDetails = () => {
         isLoading={actionLoading}
         onConfirm={handleReleaseSeats}
         onCancel={() => setShowReleaseDialog(false)}
+      />
+
+      {/* Booking Summary & Confirmation Modal */}
+      <BookingModal
+        isOpen={showBookingModal}
+        onClose={() => {
+          setShowBookingModal(false);
+          setBookingError('');
+          if (confirmedBooking) {
+            setConfirmedBooking(null);
+            setSelectedSeatIds([]);
+          }
+        }}
+        event={event}
+        selectedSeats={selectedSeatObjects}
+        totalPrice={totalPrice}
+        onConfirmBooking={handleConfirmDirectBooking}
+        isConfirming={isBooking}
+        error={bookingError}
+        confirmedBooking={confirmedBooking}
+        onViewMyBookings={() => navigate('/my-bookings')}
+        onExploreEvents={() => navigate('/events')}
+        activeHold={activeHold}
       />
     </div>
   );

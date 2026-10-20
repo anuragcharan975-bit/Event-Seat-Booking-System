@@ -526,4 +526,145 @@ describe('Booking Confirmation & Idempotency Suite', () => {
       expect(seat2Status.status).toBe('AVAILABLE');
     });
   });
+
+  describe('Direct Booking POST /api/bookings and Backend Validations', () => {
+    it('should reject booking without authorization token (401)', async () => {
+      const res = await request(app)
+        .post('/api/bookings')
+        .send({ eventId: event._id.toString(), seatIds: [seat1._id.toString()] });
+
+      expect(res.status).toBe(401);
+      expect(res.body.success).toBe(false);
+    });
+
+    it('should reject empty seat selections (400)', async () => {
+      const res = await request(app)
+        .post('/api/bookings')
+        .set('Authorization', `Bearer ${userAToken}`)
+        .send({ eventId: event._id.toString(), seatIds: [] });
+
+      expect(res.status).toBe(400);
+      expect(res.body.success).toBe(false);
+      expect(res.body.message).toMatch(/seat selection|at least 1 seat/i);
+    });
+
+    it('should reject duplicate seat selections in request (400)', async () => {
+      const res = await request(app)
+        .post('/api/bookings')
+        .set('Authorization', `Bearer ${userAToken}`)
+        .send({
+          eventId: event._id.toString(),
+          seatIds: [seat1._id.toString(), seat1._id.toString()]
+        });
+
+      expect(res.status).toBe(400);
+      expect(res.body.success).toBe(false);
+      expect(res.body.message).toMatch(/duplicate/i);
+    });
+
+    it('should reject booking for past events (400)', async () => {
+      const pastEvent = await Event.create({
+        title: 'Past Historical Concert',
+        description: 'Concert in the past',
+        venue: 'Historic Hall',
+        startTime: new Date(Date.now() - 48 * 60 * 60 * 1000), // 2 days ago
+        endTime: new Date(Date.now() - 46 * 60 * 60 * 1000),
+        pricePerSeat: 500,
+        totalSeats: 1
+      });
+
+      const pastSeat = await Seat.create({
+        eventId: pastEvent._id,
+        seatNumber: 'P1',
+        row: 'P',
+        status: 'AVAILABLE'
+      });
+
+      const res = await request(app)
+        .post('/api/bookings')
+        .set('Authorization', `Bearer ${userAToken}`)
+        .send({
+          eventId: pastEvent._id.toString(),
+          seatIds: [pastSeat._id.toString()]
+        });
+
+      expect(res.status).toBe(400);
+      expect(res.body.success).toBe(false);
+      expect(res.body.message).toMatch(/past/i);
+    });
+
+    it('should reject seats that belong to another event (400)', async () => {
+      const otherEvent = await Event.create({
+        title: 'Other Event',
+        description: 'Other event description',
+        venue: 'Other Venue',
+        startTime: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000),
+        endTime: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000 + 2 * 60 * 60 * 1000),
+        pricePerSeat: 300,
+        totalSeats: 1
+      });
+
+      const otherSeat = await Seat.create({
+        eventId: otherEvent._id,
+        seatNumber: 'O1',
+        row: 'O',
+        status: 'AVAILABLE'
+      });
+
+      // Try booking otherSeat under first event._id
+      const res = await request(app)
+        .post('/api/bookings')
+        .set('Authorization', `Bearer ${userAToken}`)
+        .send({
+          eventId: event._id.toString(),
+          seatIds: [otherSeat._id.toString()]
+        });
+
+      expect(res.status).toBe(400);
+      expect(res.body.success).toBe(false);
+      expect(res.body.message).toMatch(/do not belong to this event/i);
+    });
+
+    it('should reject seats that are already booked (409)', async () => {
+      // Mark seat1 as BOOKED directly
+      await Seat.findByIdAndUpdate(seat1._id, { status: 'BOOKED' });
+
+      const res = await request(app)
+        .post('/api/bookings')
+        .set('Authorization', `Bearer ${userAToken}`)
+        .send({
+          eventId: event._id.toString(),
+          seatIds: [seat1._id.toString()]
+        });
+
+      expect(res.status).toBe(409);
+      expect(res.body.success).toBe(false);
+      expect(res.body.message).toMatch(/already booked/i);
+    });
+
+    it('should successfully create a direct booking and return 201 with populated details and booking ID', async () => {
+      const res = await request(app)
+        .post('/api/bookings')
+        .set('Authorization', `Bearer ${userAToken}`)
+        .send({
+          eventId: event._id.toString(),
+          seatIds: [seat1._id.toString(), seat2._id.toString()]
+        });
+
+      expect(res.status).toBe(201);
+      expect(res.body.success).toBe(true);
+      expect(res.body.message).toMatch(/Booking confirmed successfully/i);
+      expect(res.body.data.bookingReference).toMatch(/^BK-[A-Z0-9-]+$/);
+      expect(res.body.data.status).toBe('CONFIRMED');
+      expect(res.body.data.amount).toBe(2400); // 1200 * 2
+      expect(res.body.data.seatIds).toHaveLength(2);
+
+      // Verify seats are now BOOKED in database
+      const updatedSeat1 = await Seat.findById(seat1._id);
+      const updatedSeat2 = await Seat.findById(seat2._id);
+      expect(updatedSeat1.status).toBe('BOOKED');
+      expect(updatedSeat2.status).toBe('BOOKED');
+    });
+  });
 });
+

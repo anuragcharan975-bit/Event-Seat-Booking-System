@@ -36,7 +36,31 @@ const cancelBooking = asyncHandler(async (req, res) => {
   });
 });
 
+/**
+ * @route   POST /api/bookings
+ * @desc    Directly book seats atomically with full backend validation
+ * @access  Protected
+ */
+const createBooking = asyncHandler(async (req, res) => {
+  const { eventId, seatIds, testClockNow } = req.body;
+  const clockNow = process.env.NODE_ENV === 'test' && testClockNow ? new Date(testClockNow) : null;
+
+  const booking = await bookingService.createDirectBooking({
+    userId: req.user.id,
+    eventId,
+    seatIds,
+    clockNow
+  });
+
+  return res.status(201).json({
+    success: true,
+    message: 'Booking confirmed successfully',
+    data: booking
+  });
+});
+
 module.exports = {
   getMyBookings,
-  cancelBooking
+  cancelBooking,
+  createBooking
 };

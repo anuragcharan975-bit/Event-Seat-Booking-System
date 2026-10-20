@@ -9,5 +9,10 @@ export const bookingApi = {
   cancelBooking: async (bookingId) => {
     const response = await api.patch(`/bookings/${bookingId}/cancel`);
     return response.data;
+  },
+
+  createBooking: async (eventId, seatIds) => {
+    const response = await api.post('/bookings', { eventId, seatIds });
+    return response.data;
   }
 };

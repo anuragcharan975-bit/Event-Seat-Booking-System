@@ -12,7 +12,7 @@ const validateRegister = [
     .normalizeEmail(),
   body('password')
     .notEmpty().withMessage('Password is required')
-    .isLength({ min: 6 }).withMessage('Password must be at least 6 characters long')
+    .isLength({ min: 1, max: 6 }).withMessage('Password cannot be more than 6 characters')
 ];
 
 const validateLogin = [
@@ -25,7 +25,32 @@ const validateLogin = [
     .notEmpty().withMessage('Password is required')
 ];
 
+const validateSendOtp = [
+  body('email')
+    .trim()
+    .notEmpty().withMessage('Email is required')
+    .isEmail().withMessage('Please provide a valid email address')
+    .normalizeEmail()
+];
+
+const validateChangePassword = [
+  body('email')
+    .trim()
+    .notEmpty().withMessage('Email is required')
+    .isEmail().withMessage('Please provide a valid email address')
+    .normalizeEmail(),
+  body('otp')
+    .trim()
+    .notEmpty().withMessage('4-digit OTP is required')
+    .matches(/^\d{4}$/).withMessage('OTP must be exactly 4 numeric digits'),
+  body('newPassword')
+    .notEmpty().withMessage('New password is required')
+    .isLength({ min: 1, max: 6 }).withMessage('New password cannot be more than 6 characters')
+];
+
 module.exports = {
   validateRegister,
-  validateLogin
+  validateLogin,
+  validateSendOtp,
+  validateChangePassword
 };

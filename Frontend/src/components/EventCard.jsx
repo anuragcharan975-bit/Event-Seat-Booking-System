@@ -49,6 +49,13 @@ const getCategoryStyles = (category = '') => {
       dot: 'bg-sky-500'
     };
   }
+  if (cat.includes('spa') || cat.includes('wellness') || cat.includes('retreat')) {
+    return {
+      badge: 'bg-teal-50 text-teal-800 border-teal-200',
+      headerGradient: 'from-teal-500 to-emerald-500',
+      dot: 'bg-teal-500'
+    };
+  }
   return {
     badge: 'bg-slate-100 text-slate-700 border-slate-200',
     headerGradient: 'from-slate-600 to-slate-800',
@@ -66,6 +73,8 @@ const CATEGORY_IMAGES = {
   sport: 'https://images.unsplash.com/photo-1626224583764-f87db24ac4ea?auto=format&fit=crop&w=800&q=80',
   workshops: 'https://images.unsplash.com/photo-1531482615713-2afd69097998?auto=format&fit=crop&w=800&q=80',
   workshop: 'https://images.unsplash.com/photo-1531482615713-2afd69097998?auto=format&fit=crop&w=800&q=80',
+  spa: 'https://images.unsplash.com/photo-1540555700478-4be289fbecef?auto=format&fit=crop&w=800&q=80',
+  wellness: 'https://images.unsplash.com/photo-1540555700478-4be289fbecef?auto=format&fit=crop&w=800&q=80',
   other: 'https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?auto=format&fit=crop&w=800&q=80'
 };
 

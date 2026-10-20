@@ -5,6 +5,7 @@ const dotenv = require('dotenv');
 dotenv.config();
 
 const authRoutes = require('./routes/authRoutes');
+const userRoutes = require('./routes/userRoutes');
 const eventRoutes = require('./routes/eventRoutes');
 const holdRoutes = require('./routes/holdRoutes');
 const bookingRoutes = require('./routes/bookingRoutes');
@@ -45,6 +46,7 @@ app.get('/api/health', (req, res) => {
 
 // API Routes
 app.use('/api/auth', authRoutes);
+app.use('/api/users', userRoutes);
 app.use('/api/events', eventRoutes);
 app.use('/api/holds', holdRoutes);
 app.use('/api/bookings', bookingRoutes);

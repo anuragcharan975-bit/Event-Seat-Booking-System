@@ -24,8 +24,8 @@ const bookingSchema = new mongoose.Schema(
     holdId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'SeatHold',
-      required: [true, 'Hold ID is required'],
-      unique: true // Guarantees idempotency: exactly one booking per hold
+      required: false,
+      default: null
     },
     seatIds: [
       {
@@ -57,6 +57,14 @@ const bookingSchema = new mongoose.Schema(
 
 // Indexes
 bookingSchema.index({ userId: 1, createdAt: -1 });
+// Enforce unique holdId ONLY when holdId is a valid ObjectId (not null/undefined)
+bookingSchema.index(
+  { holdId: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { holdId: { $type: 'objectId' } }
+  }
+);
 
 const Booking = mongoose.model('Booking', bookingSchema);
 

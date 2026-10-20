@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const Event = require('../models/Event');
 const Seat = require('../models/Seat');
 const asyncHandler = require('../utils/asyncHandler');
@@ -18,17 +19,67 @@ const getEvents = asyncHandler(async (req, res) => {
   // Build filter query using andConditions to support reliable combined filtering
   const andConditions = [];
 
-  // 1. Search filter by title, description, or venue (case-insensitive with regex escaping)
+  // 1. Search filter by title, category, description, venue, or slug
   if (req.query.search && typeof req.query.search === 'string' && req.query.search.trim()) {
-    const escapedSearch = req.query.search.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const searchRegex = new RegExp(escapedSearch, 'i');
-    andConditions.push({
-      $or: [
-        { title: searchRegex },
-        { description: searchRegex },
-        { venue: searchRegex }
-      ]
-    });
+    const rawSearch = req.query.search.trim();
+
+    // Support comma-separated queries like "dance, music" as well as multi-word queries
+    const commaParts = rawSearch.includes(',')
+      ? rawSearch.split(',').map((t) => t.trim()).filter(Boolean)
+      : [];
+
+    const spaceWords = rawSearch
+      .split(/[,]+|\s+/)
+      .map((w) => w.trim())
+      .filter((w) => w.length >= 2);
+
+    // Combine full phrase, comma tokens, and individual words without duplicates
+    const allSearchTokens = Array.from(
+      new Set([rawSearch, ...commaParts, ...spaceWords])
+    );
+
+    const searchOrConditions = [];
+
+    for (const token of allSearchTokens) {
+      const escaped = token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const tokenRegex = new RegExp(escaped, 'i');
+
+      searchOrConditions.push(
+        { title: tokenRegex },
+        { category: tokenRegex },
+        { description: tokenRegex },
+        { venue: tokenRegex },
+        { slug: tokenRegex },
+        { categorySlug: tokenRegex }
+      );
+
+      // Handle common singular/plural & variant mappings
+      if (/^workshops?$/i.test(token)) {
+        searchOrConditions.push({ category: /workshops?/i });
+      } else if (/^sports?$/i.test(token)) {
+        searchOrConditions.push({ category: /sports?/i });
+      } else if (/^theat(re|er)$/i.test(token)) {
+        searchOrConditions.push({ category: /theat(re|er)/i });
+      } else if (/^dances?$/i.test(token)) {
+        searchOrConditions.push({ category: /dance/i });
+      } else if (/^musics?$/i.test(token)) {
+        searchOrConditions.push({ category: /music/i });
+      } else if (/^comed(y|ies)$/i.test(token)) {
+        searchOrConditions.push({ category: /comedy/i });
+      }
+    }
+
+    // If search term looks like a 4-digit year (e.g. 2026)
+    if (/^\d{4}$/.test(rawSearch)) {
+      const year = parseInt(rawSearch, 10);
+      const startOfYear = new Date(Date.UTC(year, 0, 1));
+      const endOfYear = new Date(Date.UTC(year, 11, 31, 23, 59, 59, 999));
+      searchOrConditions.push({
+        startTime: { $gte: startOfYear, $lte: endOfYear }
+      });
+    }
+
+    andConditions.push({ $or: searchOrConditions });
   }
 
   // 2. Category filter
@@ -53,7 +104,8 @@ const getEvents = asyncHandler(async (req, res) => {
                 /^\s*Comedy\s*$/i,
                 /^\s*Theat(re|er)\s*$/i,
                 /^\s*Sports?\s*$/i,
-                /^\s*Workshops?\s*$/i
+                /^\s*Workshops?\s*$/i,
+                /^\s*Spa\s*$/i
               ]
             }
           }
@@ -65,6 +117,13 @@ const getEvents = asyncHandler(async (req, res) => {
       andConditions.push({ category: new RegExp('^\\s*theat(re|er)\\s*$', 'i') });
     } else if (/^sports?$/i.test(rawCat)) {
       andConditions.push({ category: new RegExp('^\\s*sports?\\s*$', 'i') });
+    } else if (/^spa(\s*&?\s*wellness)?$/i.test(rawCat)) {
+      andConditions.push({
+        $or: [
+          { category: new RegExp('^\\s*Spa\\s*$', 'i') },
+          { categorySlug: 'spa' }
+        ]
+      });
     } else {
       const catSlug = slugify(rawCat);
       const escaped = rawCat.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -192,6 +251,8 @@ const getEventSeats = asyncHandler(async (req, res) => {
     };
   });
 
+  const availableSeatsCount = seatGrid.filter((s) => s.status === 'AVAILABLE').length;
+
   return res.status(200).json({
     success: true,
     event: {
@@ -206,7 +267,8 @@ const getEventSeats = asyncHandler(async (req, res) => {
       startTime: event.startTime,
       endTime: event.endTime,
       pricePerSeat: event.pricePerSeat,
-      totalSeats: event.totalSeats
+      totalSeats: seatGrid.length || event.totalSeats,
+      availableSeats: availableSeatsCount
     },
     seats: seatGrid
   });
@@ -218,25 +280,55 @@ const getEventSeats = asyncHandler(async (req, res) => {
  * @access  Public
  */
 const getEventBySlug = asyncHandler(async (req, res) => {
-  const { category, slug } = req.params;
+  let { category, slug } = req.params;
 
-  if (!category || !slug) {
+  // Support single parameter routes like /slug/:slug or /:slug
+  if (!slug && category) {
+    slug = category;
+    category = 'all';
+  }
+
+  if (!slug) {
     return res.status(400).json({
       success: false,
-      message: 'Category and event slug parameters are required'
+      message: 'Event slug or identifier parameter is required'
     });
   }
 
-  const normalizedCat = slugify(category);
+  const normalizedCat = slugify(category || 'all');
   const normalizedSlug = slugify(slug);
 
-  // Find event by unique slug
-  const event = await Event.findOne({
+  // 1. Primary lookup: Match by unique slug (normalized or trimmed lowercase)
+  let event = await Event.findOne({
     $or: [
       { slug: normalizedSlug },
       { slug: slug.toLowerCase().trim() }
     ]
   });
+
+  // 2. Fallback: If not found, check if category param was actually the event slug
+  if (!event && normalizedCat && !['all', 'events', 'other'].includes(normalizedCat)) {
+    event = await Event.findOne({
+      $or: [
+        { slug: normalizedCat },
+        { slug: category.toLowerCase().trim() }
+      ]
+    });
+  }
+
+  // 3. Fallback: Check if slug is a valid MongoDB ObjectId
+  if (!event && mongoose.Types.ObjectId.isValid(slug)) {
+    event = await Event.findById(slug);
+  }
+
+  // 4. Fallback: Title case-insensitive match (converting hyphens to spaces)
+  if (!event) {
+    const titleFromSlug = slug.replace(/-/g, ' ').trim();
+    const escaped = titleFromSlug.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    event = await Event.findOne({
+      title: new RegExp('^' + escaped + '$', 'i')
+    });
+  }
 
   if (!event) {
     return res.status(404).json({
@@ -245,18 +337,7 @@ const getEventBySlug = asyncHandler(async (req, res) => {
     });
   }
 
-  // Validate category: the event's category must match the URL category
   const eventCatSlug = event.categorySlug || slugify(event.category || 'other');
-  if (
-    eventCatSlug !== normalizedCat &&
-    normalizedCat !== 'events' &&
-    normalizedCat !== 'all'
-  ) {
-    return res.status(404).json({
-      success: false,
-      message: `Event "${event.title}" belongs to category "${event.category}", not "${category}"`
-    });
-  }
 
   const now = new Date();
   const seats = await Seat.find({ eventId: event._id }).sort({ row: 1, seatNumber: 1 });
@@ -283,6 +364,8 @@ const getEventBySlug = asyncHandler(async (req, res) => {
     };
   });
 
+  const availableSeatsCount = seatGrid.filter((s) => s.status === 'AVAILABLE').length;
+
   return res.status(200).json({
     success: true,
     event: {
@@ -297,14 +380,83 @@ const getEventBySlug = asyncHandler(async (req, res) => {
       startTime: event.startTime,
       endTime: event.endTime,
       pricePerSeat: event.pricePerSeat,
-      totalSeats: event.totalSeats
+      totalSeats: seatGrid.length || event.totalSeats,
+      availableSeats: availableSeatsCount
     },
     seats: seatGrid
+  });
+});
+
+/**
+ * @route   POST /api/events
+ * @desc    Create a new event and automatically generate its seat grid
+ * @access  Public / Admin
+ */
+const createEvent = asyncHandler(async (req, res) => {
+  const {
+    title,
+    description,
+    venue,
+    startTime,
+    endTime,
+    pricePerSeat,
+    category,
+    imageUrl,
+    totalSeats
+  } = req.body;
+
+  if (!title || !description || !venue || !startTime || !endTime || pricePerSeat == null) {
+    return res.status(400).json({
+      success: false,
+      message: 'Title, description, venue, startTime, endTime, and pricePerSeat are required'
+    });
+  }
+
+  const seatCount = parseInt(totalSeats, 10) || 40;
+  const newEvent = await Event.create({
+    title,
+    description,
+    venue,
+    startTime: new Date(startTime),
+    endTime: new Date(endTime),
+    pricePerSeat: Number(pricePerSeat),
+    category: category || 'Other',
+    imageUrl: imageUrl || '',
+    totalSeats: seatCount
+  });
+
+  // Generate standard 4-row seat grid (A, B, C, D)
+  const rows = ['A', 'B', 'C', 'D'];
+  const seatsPerRow = Math.ceil(seatCount / rows.length);
+  const seatsToInsert = [];
+
+  let count = 0;
+  for (const row of rows) {
+    for (let num = 1; num <= seatsPerRow; num++) {
+      if (count >= seatCount) break;
+      seatsToInsert.push({
+        eventId: newEvent._id,
+        seatNumber: `${row}${num}`,
+        row: row,
+        status: 'AVAILABLE'
+      });
+      count++;
+    }
+  }
+
+  await Seat.insertMany(seatsToInsert);
+
+  return res.status(201).json({
+    success: true,
+    message: 'Event created successfully with seat grid',
+    data: newEvent
   });
 });
 
 module.exports = {
   getEvents,
   getEventSeats,
-  getEventBySlug
+  getEventBySlug,
+  createEvent
 };
+

@@ -1,19 +1,30 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Ticket, User, LogOut, Calendar, BookmarkCheck, ShieldCheck } from 'lucide-react';
+import ConfirmDialog from './ConfirmDialog';
+import { Ticket, User, LogOut, Calendar, BookmarkCheck, ShieldCheck, Home } from 'lucide-react';
 
 const Navbar = () => {
   const { user, isAuthenticated, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
-  const handleLogout = () => {
+  const [showLogoutDialog, setShowLogoutDialog] = useState(false);
+
+  const handleLogoutClick = () => {
+    setShowLogoutDialog(true);
+  };
+
+  const handleConfirmLogout = () => {
+    setShowLogoutDialog(false);
     logout();
     navigate('/login');
   };
 
-  const isActive = (path) => location.pathname === path;
+  const isHomeActive = location.pathname === '/';
+  const isEventsActive = location.pathname === '/events' || location.pathname.startsWith('/events/');
+  const isBookingsActive = location.pathname === '/my-bookings';
+  const isProfileActive = location.pathname === '/profile';
 
   return (
     <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200 shadow-xs">
@@ -39,7 +50,19 @@ const Navbar = () => {
             <Link
               to="/"
               className={`px-3 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-colors flex items-center gap-1.5 ${
-                isActive('/')
+                isHomeActive
+                  ? 'bg-sky-50 text-sky-700 font-bold'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+              }`}
+            >
+              <Home className="w-4 h-4 text-sky-600" />
+              <span>Home</span>
+            </Link>
+
+            <Link
+              to="/events"
+              className={`px-3 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-colors flex items-center gap-1.5 ${
+                isEventsActive
                   ? 'bg-sky-50 text-sky-700 font-bold'
                   : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
               }`}
@@ -53,7 +76,7 @@ const Navbar = () => {
                 <Link
                   to="/my-bookings"
                   className={`px-3 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-colors flex items-center gap-1.5 ${
-                    isActive('/my-bookings')
+                    isBookingsActive
                       ? 'bg-sky-50 text-sky-700 font-bold'
                       : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
                   }`}
@@ -62,21 +85,38 @@ const Navbar = () => {
                   <span>My Bookings</span>
                 </Link>
 
+                <Link
+                  to="/profile"
+                  className={`px-3 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-colors flex items-center gap-1.5 ${
+                    isProfileActive
+                      ? 'bg-sky-50 text-sky-700 font-bold'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                  }`}
+                >
+                  <User className="w-4 h-4 text-sky-600" />
+                  <span>Profile</span>
+                </Link>
+
                 <div className="h-6 w-px bg-slate-200 mx-1 sm:mx-2" />
 
                 <div className="flex items-center gap-2">
-                  <div
-                    title={user?.email}
-                    className="flex items-center gap-1.5 text-xs font-bold text-slate-700 bg-slate-100 px-3 py-1.5 rounded-full border border-slate-200 max-w-[140px] sm:max-w-[200px]"
+                  <Link
+                    to="/profile"
+                    title={`View Profile (${user?.name || user?.email})`}
+                    className={`flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full border transition-all ${
+                      isProfileActive
+                        ? 'bg-sky-50 text-sky-700 border-sky-300 ring-2 ring-sky-400/20 shadow-xs'
+                        : 'text-slate-700 bg-slate-100 hover:bg-slate-200 border-slate-200'
+                    } max-w-[140px] sm:max-w-[180px]`}
                   >
                     <div className="w-4 h-4 rounded-full bg-sky-600 text-white flex items-center justify-center text-[10px] font-black shrink-0">
                       {(user?.name || user?.email || 'U')[0].toUpperCase()}
                     </div>
                     <span className="truncate">{user?.name || user?.email}</span>
-                  </div>
+                  </Link>
 
                   <button
-                    onClick={handleLogout}
+                    onClick={handleLogoutClick}
                     title="Log Out"
                     className="p-2 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors"
                   >
@@ -103,6 +143,18 @@ const Navbar = () => {
           </nav>
         </div>
       </div>
+
+      {/* Logout Confirmation Dialog */}
+      <ConfirmDialog
+        isOpen={showLogoutDialog}
+        title="Confirm Log Out"
+        message="Are you sure you want to log out of your account?"
+        confirmText="Yes, Log Out"
+        cancelText="Stay Logged In"
+        isDanger={true}
+        onConfirm={handleConfirmLogout}
+        onCancel={() => setShowLogoutDialog(false)}
+      />
     </header>
   );
 };

@@ -1,4 +1,5 @@
 const app = require('./app');
+const mongoose = require('mongoose');
 const { connectDB } = require('./config/db');
 const Event = require('./models/Event');
 const Seat = require('./models/Seat');
@@ -89,6 +90,39 @@ const seedInitialDataIfNeeded = async () => {
         endTime: new Date(now.getTime() + 28 * 24 * 60 * 60 * 1000 + 6 * 60 * 60 * 1000),
         pricePerSeat: 500,
         totalSeats: 40
+      },
+      {
+        title: 'Serenity Luxury Spa & Wellness Retreat',
+        category: 'Spa',
+        imageUrl: 'https://images.unsplash.com/photo-1507652313519-d4e9174996dd?auto=format&fit=crop&w=800&q=80',
+        description: 'Immerse yourself in a full-day holistic wellness experience featuring therapeutic aromatherapy, Swedish massage sessions, thermal hydrotherapy baths, and guided mindfulness meditation.',
+        venue: 'Serenity Mountain Spa Pavilion, Zen Suite',
+        startTime: new Date(now.getTime() + 12 * 24 * 60 * 60 * 1000), // 12 days ahead
+        endTime: new Date(now.getTime() + 12 * 24 * 60 * 60 * 1000 + 6 * 60 * 60 * 1000),
+        pricePerSeat: 1600,
+        totalSeats: 40
+      },
+      {
+        title: 'Himalayan Herbal Spa & Detox Weekend',
+        category: 'Spa',
+        imageUrl: 'https://images.unsplash.com/photo-1544161515-4ab6ce6db874?auto=format&fit=crop&w=800&q=80',
+        description: 'Rejuvenate your senses with pure Himalayan herbal remedies, hot stone therapies, organic detox drinks, and serene wellness therapy sessions.',
+        venue: 'Himalayan Wellness Sanctuary, Hall B',
+        startTime: new Date(now.getTime() + 18 * 24 * 60 * 60 * 1000),
+        endTime: new Date(now.getTime() + 18 * 24 * 60 * 60 * 1000 + 4 * 60 * 60 * 1000),
+        pricePerSeat: 1800,
+        totalSeats: 40
+      },
+      {
+        title: 'Ayurvedic Herbal Spa & Rejuvenation Retreat',
+        category: 'Spa',
+        imageUrl: 'https://images.unsplash.com/photo-1600334089648-b0d9d3028eb2?auto=format&fit=crop&w=800&q=80',
+        description: 'Experience traditional Ayurvedic wellness therapy, authentic herbal steam baths, hot stone massages, and holistic rejuvenation therapies with certified master practitioners.',
+        venue: 'Ayur Wellness Sanctuary, Green Valley Pavilion',
+        startTime: new Date(now.getTime() + 15 * 24 * 60 * 60 * 1000),
+        endTime: new Date(now.getTime() + 15 * 24 * 60 * 60 * 1000 + 5 * 60 * 60 * 1000),
+        pricePerSeat: 1400,
+        totalSeats: 40
       }
     ];
 
@@ -127,15 +161,37 @@ const seedInitialDataIfNeeded = async () => {
         }
       }
     );
+    await Event.updateMany(
+      { title: 'Himalayan Herbal Spa & Detox Weekend' },
+      {
+        $set: {
+          category: 'Spa',
+          imageUrl: 'https://images.unsplash.com/photo-1544161515-4ab6ce6db874?auto=format&fit=crop&w=800&q=80'
+        }
+      }
+    );
+    await Event.updateMany(
+      { title: 'Serenity Luxury Spa & Wellness Retreat' },
+      {
+        $set: {
+          category: 'Spa',
+          imageUrl: 'https://images.unsplash.com/photo-1507652313519-d4e9174996dd?auto=format&fit=crop&w=800&q=80'
+        }
+      }
+    );
+    await Event.updateMany(
+      { title: 'Ayurvedic Herbal Spa & Rejuvenation Retreat' },
+      {
+        $set: {
+          category: 'Spa',
+          imageUrl: 'https://images.unsplash.com/photo-1600334089648-b0d9d3028eb2?auto=format&fit=crop&w=800&q=80'
+        }
+      }
+    );
 
-    // Seed any missing category event from our catalog
+    // Seed any missing event from our demo catalog
     for (const eventData of demoEvents) {
-      const existing = await Event.findOne({
-        $or: [
-          { title: eventData.title },
-          { category: eventData.category }
-        ]
-      });
+      const existing = await Event.findOne({ title: eventData.title });
 
       if (!existing) {
         const createdEvent = await Event.create(eventData);
@@ -175,6 +231,28 @@ const seedInitialDataIfNeeded = async () => {
         await ev.save();
         console.log(`[Seed] Generated readable slug for "${ev.title}": /${ev.categorySlug}/${ev.slug}`);
       }
+    }
+
+    // Ensure Booking collection indexes are healthy (holdId_1 with partialFilterExpression)
+    try {
+      const bookingCollection = mongoose.connection.db.collection('bookings');
+      const bIndexes = await bookingCollection.indexes();
+      const faultyHoldIndex = bIndexes.find(i => i.name === 'holdId_1' && !i.partialFilterExpression);
+      if (faultyHoldIndex) {
+        await bookingCollection.dropIndex('holdId_1');
+        await bookingCollection.createIndex(
+          { holdId: 1 },
+          {
+            name: 'holdId_1',
+            unique: true,
+            partialFilterExpression: { holdId: { $type: 'objectId' } },
+            background: true
+          }
+        );
+        console.log('[Seed] Rebuilt holdId_1 index with partialFilterExpression');
+      }
+    } catch (idxErr) {
+      console.warn('[Seed Index Warning]:', idxErr.message);
     }
 
     console.log('[Seed] Event category catalog, SEO slugs, and images synchronized.');

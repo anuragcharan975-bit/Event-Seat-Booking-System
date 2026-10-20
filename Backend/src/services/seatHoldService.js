@@ -56,6 +56,15 @@ const createSeatHold = async ({
     throw error;
   }
 
+  // 3b. Verify none of the requested seats are already booked
+  for (const s of seats) {
+    if (s.status === 'BOOKED') {
+      const error = new Error(`Seat ${s.seatNumber} is already booked.`);
+      error.statusCode = 409;
+      throw error;
+    }
+  }
+
   // 4. Generate new hold ObjectId in advance
   const holdId = new mongoose.Types.ObjectId();
   const totalAmount = event.pricePerSeat * seatIds.length;

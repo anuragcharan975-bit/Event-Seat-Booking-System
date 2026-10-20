@@ -457,8 +457,204 @@ const getUserBookings = async (userId) => {
   }));
 };
 
+/**
+ * Creates a direct booking atomically with full server-side validations:
+ * - Checks event exists (404)
+ * - Checks event date is not in the past (400)
+ * - Checks empty seat selection (400)
+ * - Checks duplicate seat IDs (400)
+ * - Checks that seats belong to the correct event (400)
+ * - Checks that no seats are already booked or actively held (409)
+ * - Atomically marks seats as BOOKED and creates Booking record
+ *
+ * @param {Object} params
+ * @param {string} params.userId
+ * @param {string} params.eventId
+ * @param {Array<string>} params.seatIds
+ * @param {Date} [params.clockNow]
+ */
+const createDirectBooking = async ({ userId, eventId, seatIds, clockNow = null }) => {
+  const now = clockNow ? new Date(clockNow) : new Date();
+
+  // 1. Validate empty seat selection
+  if (!seatIds || !Array.isArray(seatIds) || seatIds.length === 0) {
+    const error = new Error('Empty seat selection: You must select at least 1 seat to book');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  // 2. Validate duplicate seat selection
+  const uniqueSeatIds = new Set(seatIds.map(String));
+  if (uniqueSeatIds.size !== seatIds.length) {
+    const error = new Error('Duplicate seats selected: Each seat can only be selected once');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  // 3. Verify event exists
+  const event = await Event.findById(eventId);
+  if (!event) {
+    const error = new Error('Event not found');
+    error.statusCode = 404;
+    throw error;
+  }
+
+  // 4. Verify event date has not passed
+  if (new Date(event.startTime) <= now) {
+    const error = new Error('Cannot book tickets for past or ongoing events');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  // 5. Verify all requested seats exist and belong to this event
+  const seats = await Seat.find({
+    _id: { $in: seatIds },
+    eventId: event._id
+  });
+
+  if (seats.length !== seatIds.length) {
+    const error = new Error('One or more selected seats do not belong to this event');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  // 6. Verify none of the seats are already booked or actively held
+  for (const s of seats) {
+    if (s.status === 'BOOKED') {
+      const error = new Error(`Seat ${s.seatNumber} is already booked.`);
+      error.statusCode = 409;
+      throw error;
+    }
+    if (s.status === 'HELD' && s.holdExpiresAt && new Date(s.holdExpiresAt) > now) {
+      const error = new Error(`Seat ${s.seatNumber} is currently held by another customer.`);
+      error.statusCode = 409;
+      throw error;
+    }
+  }
+
+  const trustedAmount = event.pricePerSeat * seatIds.length;
+  const bookingReference = generateBookingReference();
+  const useReplicaSetTransaction = supportsTransactions();
+
+  if (useReplicaSetTransaction) {
+    const session = await mongoose.startSession();
+    try {
+      let createdBooking = null;
+      await session.withTransaction(async () => {
+        // Atomically claim seats
+        for (const seatId of seatIds) {
+          const claimedSeat = await Seat.findOneAndUpdate(
+            {
+              _id: seatId,
+              eventId: event._id,
+              $or: [
+                { status: 'AVAILABLE' },
+                { status: 'HELD', holdExpiresAt: { $lte: now } }
+              ]
+            },
+            {
+              $set: {
+                status: 'BOOKED',
+                holdId: null,
+                holdExpiresAt: null
+              }
+            },
+            { session, new: true }
+          );
+
+          if (!claimedSeat) {
+            const conflict = new Error('One or more selected seats are no longer available.');
+            conflict.statusCode = 409;
+            throw conflict;
+          }
+        }
+
+        const [newBooking] = await Booking.create(
+          [
+            {
+              bookingReference,
+              userId,
+              eventId: event._id,
+              seatIds,
+              amount: trustedAmount,
+              status: 'CONFIRMED'
+            }
+          ],
+          { session }
+        );
+        createdBooking = newBooking;
+      });
+
+      const populated = await Booking.findById(createdBooking._id)
+        .populate('eventId', 'title venue startTime endTime pricePerSeat category')
+        .populate('seatIds', 'seatNumber row');
+
+      return populated;
+    } finally {
+      await session.endSession();
+    }
+  } else {
+    // Standalone MongoDB atomic conditional update with rollback
+    const claimedSeatIds = [];
+    try {
+      for (const seatId of seatIds) {
+        const claimedSeat = await Seat.findOneAndUpdate(
+          {
+            _id: seatId,
+            eventId: event._id,
+            $or: [
+              { status: 'AVAILABLE' },
+              { status: 'HELD', holdExpiresAt: { $lte: now } }
+            ]
+          },
+          {
+            $set: {
+              status: 'BOOKED',
+              holdId: null,
+              holdExpiresAt: null
+            }
+          },
+          { new: true }
+        );
+
+        if (!claimedSeat) {
+          const conflict = new Error('One or more selected seats are no longer available.');
+          conflict.statusCode = 409;
+          throw conflict;
+        }
+
+        claimedSeatIds.push(seatId);
+      }
+
+      const newBooking = await Booking.create({
+        bookingReference,
+        userId,
+        eventId: event._id,
+        seatIds,
+        amount: trustedAmount,
+        status: 'CONFIRMED'
+      });
+
+      const populated = await Booking.findById(newBooking._id)
+        .populate('eventId', 'title venue startTime endTime pricePerSeat category')
+        .populate('seatIds', 'seatNumber row');
+
+      return populated;
+    } catch (err) {
+      if (claimedSeatIds.length > 0) {
+        await Seat.updateMany(
+          { _id: { $in: claimedSeatIds }, eventId: event._id, status: 'BOOKED' },
+          { $set: { status: 'AVAILABLE', holdId: null, holdExpiresAt: null } }
+        );
+      }
+      throw err;
+    }
+  }
+};
+
 module.exports = {
   confirmBooking,
   cancelBooking,
-  getUserBookings
+  getUserBookings,
+  createDirectBooking
 };
