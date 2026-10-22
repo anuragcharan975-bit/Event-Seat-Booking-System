@@ -37,14 +37,23 @@ const createSeatHold = async ({
     throw error;
   }
 
-  // 2. Verify Event is in the future
-  if (new Date(event.startTime) <= now) {
-    const error = new Error('Cannot hold seats for past or ongoing events');
+  // 2. Verify Event is not completed
+  if (event.status === 'Completed') {
+    const error = new Error('Completed Event! Bookings are closed for this event.');
     error.statusCode = 400;
     throw error;
   }
 
-  // 3. Verify all requested seats exist and belong to this event
+  // 3. Verify Event has not passed its close time (endTime)
+  const closeTime = event.endTime ? new Date(event.endTime) : (event.startTime ? new Date(event.startTime) : null);
+  if (closeTime && now > closeTime) {
+    const formattedCloseTime = closeTime.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true });
+    const error = new Error(`Event Time Over! Booking time has ended. This event closed at ${formattedCloseTime}.`);
+    error.statusCode = 400;
+    throw error;
+  }
+
+  // 4. Verify all requested seats exist and belong to this event
   const seats = await Seat.find({
     _id: { $in: seatIds },
     eventId: event._id

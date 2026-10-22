@@ -9,6 +9,7 @@ const userRoutes = require('./routes/userRoutes');
 const eventRoutes = require('./routes/eventRoutes');
 const holdRoutes = require('./routes/holdRoutes');
 const bookingRoutes = require('./routes/bookingRoutes');
+const adminRoutes = require('./routes/adminRoutes');
 const { notFoundHandler, errorHandler } = require('./middlewares/errorMiddleware');
 
 const app = express();
@@ -33,7 +34,8 @@ app.use(
   })
 );
 
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ limit: '10mb', extended: true }));
 
 // API Health Check
 app.get('/api/health', (req, res) => {
@@ -50,6 +52,7 @@ app.use('/api/users', userRoutes);
 app.use('/api/events', eventRoutes);
 app.use('/api/holds', holdRoutes);
 app.use('/api/bookings', bookingRoutes);
+app.use('/api/admin', adminRoutes);
 
 // 404 Handler
 app.use(notFoundHandler);

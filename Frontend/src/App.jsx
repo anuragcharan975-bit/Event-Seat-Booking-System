@@ -9,6 +9,7 @@ import Events from './pages/Events';
 import EventDetails from './pages/EventDetails';
 import MyBookings from './pages/MyBookings';
 import Profile from './pages/Profile';
+import AdminDashboard from './pages/AdminDashboard';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import NotFound from './pages/NotFound';
@@ -41,6 +42,7 @@ function App() {
                 </ProtectedRoute>
               }
             />
+            <Route path="admin" element={<AdminDashboard />} />
             <Route path="login" element={<Login />} />
             <Route path="register" element={<Register />} />
             <Route path="*" element={<NotFound />} />

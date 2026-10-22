@@ -63,6 +63,15 @@ const eventSchema = new mongoose.Schema(
       type: String,
       trim: true,
       lowercase: true
+    },
+    status: {
+      type: String,
+      enum: {
+        values: ['Pending', 'In Progress', 'Completed'],
+        message: '{VALUE} is not a valid event status'
+      },
+      default: 'Pending',
+      trim: true
     }
   },
   {
@@ -70,9 +79,10 @@ const eventSchema = new mongoose.Schema(
   }
 );
 
-// Indexes for querying upcoming events, categories, and readable slugs
+// Indexes for querying upcoming events, categories, status, and readable slugs
 eventSchema.index({ startTime: 1 });
 eventSchema.index({ category: 1 });
+eventSchema.index({ status: 1 });
 eventSchema.index({ slug: 1 }, { unique: true, sparse: true });
 eventSchema.index({ categorySlug: 1, slug: 1 });
 

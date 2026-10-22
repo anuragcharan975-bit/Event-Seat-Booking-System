@@ -5,7 +5,7 @@ import ConfirmDialog from './ConfirmDialog';
 import { Ticket, User, LogOut, Calendar, BookmarkCheck, ShieldCheck, Home } from 'lucide-react';
 
 const Navbar = () => {
-  const { user, isAuthenticated, logout } = useAuth();
+  const { user, isAuthenticated, isAdmin, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -25,6 +25,7 @@ const Navbar = () => {
   const isEventsActive = location.pathname === '/events' || location.pathname.startsWith('/events/');
   const isBookingsActive = location.pathname === '/my-bookings';
   const isProfileActive = location.pathname === '/profile';
+  const isAdminActive = location.pathname === '/admin' || location.pathname.startsWith('/admin');
 
   return (
     <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200 shadow-xs">
@@ -97,32 +98,30 @@ const Navbar = () => {
                   <span>Profile</span>
                 </Link>
 
+                {isAdmin && (
+                  <Link
+                    to="/admin"
+                    className={`px-3 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all flex items-center gap-1.5 shadow-xs ${
+                      isAdminActive
+                        ? 'bg-purple-600 text-white shadow-purple-500/20'
+                        : 'bg-purple-50 text-purple-700 hover:bg-purple-100 hover:text-purple-800'
+                    }`}
+                  >
+                    <ShieldCheck className="w-4 h-4 text-purple-500" />
+                    <span>Admin Panel</span>
+                  </Link>
+                )}
+
                 <div className="h-6 w-px bg-slate-200 mx-1 sm:mx-2" />
 
-                <div className="flex items-center gap-2">
-                  <Link
-                    to="/profile"
-                    title={`View Profile (${user?.name || user?.email})`}
-                    className={`flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-full border transition-all ${
-                      isProfileActive
-                        ? 'bg-sky-50 text-sky-700 border-sky-300 ring-2 ring-sky-400/20 shadow-xs'
-                        : 'text-slate-700 bg-slate-100 hover:bg-slate-200 border-slate-200'
-                    } max-w-[140px] sm:max-w-[180px]`}
-                  >
-                    <div className="w-4 h-4 rounded-full bg-sky-600 text-white flex items-center justify-center text-[10px] font-black shrink-0">
-                      {(user?.name || user?.email || 'U')[0].toUpperCase()}
-                    </div>
-                    <span className="truncate">{user?.name || user?.email}</span>
-                  </Link>
-
-                  <button
-                    onClick={handleLogoutClick}
-                    title="Log Out"
-                    className="p-2 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors"
-                  >
-                    <LogOut className="w-4 h-4" />
-                  </button>
-                </div>
+                <button
+                  onClick={handleLogoutClick}
+                  title="Log Out"
+                  className="px-3 py-2 text-slate-600 hover:text-rose-600 hover:bg-rose-50 rounded-xl text-xs sm:text-sm font-semibold transition-colors flex items-center gap-1.5"
+                >
+                  <LogOut className="w-4 h-4 text-rose-500" />
+                  <span>Logout</span>
+                </button>
               </>
             ) : (
               <div className="flex items-center gap-2 pl-2">

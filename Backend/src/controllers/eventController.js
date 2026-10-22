@@ -3,6 +3,7 @@ const Event = require('../models/Event');
 const Seat = require('../models/Seat');
 const asyncHandler = require('../utils/asyncHandler');
 const { slugify } = require('../utils/slugify');
+const { syncCompletedEvents } = require('../services/eventLifecycleService');
 
 /**
  * @route   GET /api/events
@@ -10,8 +11,11 @@ const { slugify } = require('../utils/slugify');
  * @access  Public
  */
 const getEvents = asyncHandler(async (req, res) => {
-  const page = parseInt(req.query.page, 10) || 1;
-  const limit = parseInt(req.query.limit, 10) || 20;
+  // Sync all events whose endTime has passed to 'Completed' status
+  await syncCompletedEvents();
+
+  const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+  const limit = Math.max(1, parseInt(req.query.limit, 10) || 5); // 5 records per page
   const skip = (page - 1) * limit;
 
   const now = new Date();
@@ -19,7 +23,7 @@ const getEvents = asyncHandler(async (req, res) => {
   // Build filter query using andConditions to support reliable combined filtering
   const andConditions = [];
 
-  // 1. Search filter by title, category, description, venue, or slug
+  // 1. Case-insensitive Search filter by title, category, description, venue, or slug
   if (req.query.search && typeof req.query.search === 'string' && req.query.search.trim()) {
     const rawSearch = req.query.search.trim();
 
@@ -50,12 +54,22 @@ const getEvents = asyncHandler(async (req, res) => {
         { description: tokenRegex },
         { venue: tokenRegex },
         { slug: tokenRegex },
-        { categorySlug: tokenRegex }
+        { categorySlug: tokenRegex },
+        { status: tokenRegex }
       );
 
+      // Handle status keywords in search
+      if (/^pend(ing)?$/i.test(token)) {
+        searchOrConditions.push({ status: 'Pending' });
+      } else if (/^(in_?progress|progress|live)$/i.test(token)) {
+        searchOrConditions.push({ status: 'In Progress' });
+      } else if (/^complet(ed?)?$/i.test(token)) {
+        searchOrConditions.push({ status: 'Completed' });
+      }
+
       // Handle common singular/plural & variant mappings
-      if (/^workshops?$/i.test(token)) {
-        searchOrConditions.push({ category: /workshops?/i });
+      if (/^(workshops?|workspaces?)$/i.test(token)) {
+        searchOrConditions.push({ category: /(workshops?|workspaces?)/i });
       } else if (/^sports?$/i.test(token)) {
         searchOrConditions.push({ category: /sports?/i });
       } else if (/^theat(re|er)$/i.test(token)) {
@@ -66,6 +80,8 @@ const getEvents = asyncHandler(async (req, res) => {
         searchOrConditions.push({ category: /music/i });
       } else if (/^comed(y|ies)$/i.test(token)) {
         searchOrConditions.push({ category: /comedy/i });
+      } else if (/^(games?|gaming|esports?)$/i.test(token)) {
+        searchOrConditions.push({ category: /^(game|gaming)$/i });
       }
     }
 
@@ -111,10 +127,20 @@ const getEvents = asyncHandler(async (req, res) => {
           }
         ]
       });
-    } else if (/^workshops?$/i.test(rawCat)) {
-      andConditions.push({ category: new RegExp('^\\s*workshops?\\s*$', 'i') });
+    } else if (/^(workshops?|workspaces?)$/i.test(rawCat)) {
+      andConditions.push({
+        $or: [
+          { category: new RegExp('^\\s*(workshops?|workspaces?)\\s*$', 'i') },
+          { categorySlug: { $in: ['workshops', 'workshop', 'workspace', 'workspaces'] } }
+        ]
+      });
     } else if (/^theat(re|er)$/i.test(rawCat)) {
-      andConditions.push({ category: new RegExp('^\\s*theat(re|er)\\s*$', 'i') });
+      andConditions.push({
+        $or: [
+          { category: new RegExp('^\\s*theat(re|er)\\s*$', 'i') },
+          { categorySlug: { $in: ['theatre', 'theater'] } }
+        ]
+      });
     } else if (/^sports?$/i.test(rawCat)) {
       andConditions.push({ category: new RegExp('^\\s*sports?\\s*$', 'i') });
     } else if (/^spa(\s*&?\s*wellness)?$/i.test(rawCat)) {
@@ -136,7 +162,49 @@ const getEvents = asyncHandler(async (req, res) => {
     }
   }
 
-  // 3. Date filter (events starting on that calendar date)
+  // 3. Status filter (All, Upcoming, Past, Available, Sold Out, Pending, In Progress, Completed)
+  if (req.query.status && typeof req.query.status === 'string' && req.query.status.trim()) {
+    const rawStatus = req.query.status.trim().toLowerCase();
+    if (rawStatus === 'upcoming') {
+      andConditions.push({
+        $or: [
+          { endTime: { $gte: now } },
+          { startTime: { $gte: now } }
+        ]
+      });
+    } else if (rawStatus === 'past') {
+      andConditions.push({
+        $or: [
+          { endTime: { $lt: now } },
+          { endTime: { $exists: false }, startTime: { $lt: now } }
+        ]
+      });
+    } else if (rawStatus === 'pending') {
+      andConditions.push({ status: 'Pending' });
+    } else if (rawStatus === 'in_progress' || rawStatus === 'in progress' || rawStatus === 'inprogress') {
+      andConditions.push({ status: 'In Progress' });
+    } else if (rawStatus === 'completed') {
+      andConditions.push({ status: 'Completed' });
+    } else if (rawStatus === 'available') {
+      const availableEventIds = await Seat.distinct('eventId', {
+        $or: [
+          { status: 'AVAILABLE' },
+          { status: 'HELD', holdExpiresAt: { $lt: now } }
+        ]
+      });
+      andConditions.push({ _id: { $in: availableEventIds } });
+    } else if (rawStatus === 'sold_out' || rawStatus === 'soldout' || rawStatus === 'sold-out') {
+      const availableEventIds = await Seat.distinct('eventId', {
+        $or: [
+          { status: 'AVAILABLE' },
+          { status: 'HELD', holdExpiresAt: { $lt: now } }
+        ]
+      });
+      andConditions.push({ _id: { $nin: availableEventIds } });
+    }
+  }
+
+  // 4. Date filter (events starting on that calendar date)
   if (req.query.date && typeof req.query.date === 'string' && req.query.date.trim()) {
     const parsedDate = new Date(req.query.date.trim());
     if (!isNaN(parsedDate.getTime())) {
@@ -150,12 +218,32 @@ const getEvents = asyncHandler(async (req, res) => {
 
   const query = andConditions.length > 0 ? { $and: andConditions } : {};
 
-  // Find filtered events count and list
+  // 5. Sorting options: Newest, Oldest, A–Z, Z–A
+  const sortParam = (req.query.sort || '').toString().trim().toLowerCase();
+  let sortQuery = { startTime: 1 };
+  let useCollation = false;
+
+  if (sortParam === 'newest' || sortParam === 'latest' || sortParam === 'date_desc') {
+    sortQuery = { startTime: -1, _id: -1 };
+  } else if (sortParam === 'oldest' || sortParam === 'date_asc') {
+    sortQuery = { startTime: 1, _id: 1 };
+  } else if (sortParam === 'a-z' || sortParam === 'az' || sortParam === 'title_asc') {
+    sortQuery = { title: 1 };
+    useCollation = true;
+  } else if (sortParam === 'z-a' || sortParam === 'za' || sortParam === 'title_desc') {
+    sortQuery = { title: -1 };
+    useCollation = true;
+  }
+
+  // Find filtered events count
   const totalEvents = await Event.countDocuments(query);
-  const events = await Event.find(query)
-    .sort({ startTime: 1 })
-    .skip(skip)
-    .limit(limit);
+
+  let eventsQuery = Event.find(query).sort(sortQuery);
+  if (useCollation) {
+    eventsQuery = eventsQuery.collation({ locale: 'en', strength: 2 });
+  }
+
+  const events = await eventsQuery.skip(skip).limit(limit);
 
   // Retrieve all distinct categories across the event catalog for filter dropdowns
   const distinctCategories = await Event.distinct('category');
@@ -177,6 +265,11 @@ const getEvents = asyncHandler(async (req, res) => {
         ]
       });
 
+      const effectiveStatus = availableSeats > 0 ? 'AVAILABLE' : 'SOLD_OUT';
+
+      const isEnded = event.endTime ? new Date(event.endTime) <= now : false;
+      const effectiveEventStatus = isEnded || event.status === 'Completed' ? 'Completed' : (event.status || 'Pending');
+
       return {
         _id: event._id,
         title: event.title,
@@ -190,7 +283,11 @@ const getEvents = asyncHandler(async (req, res) => {
         endTime: event.endTime,
         pricePerSeat: event.pricePerSeat,
         totalSeats: totalSeats || event.totalSeats,
-        availableSeats
+        availableSeats,
+        status: effectiveEventStatus,
+        eventStatus: effectiveEventStatus,
+        seatStatus: effectiveStatus,
+        isSoldOut: availableSeats === 0
       };
     })
   );
@@ -199,6 +296,7 @@ const getEvents = asyncHandler(async (req, res) => {
     success: true,
     totalEvents,
     page,
+    limit,
     totalPages: Math.ceil(totalEvents / limit) || 1,
     categories: sanitizedCategories,
     data: eventsWithAvailability
@@ -211,6 +309,7 @@ const getEvents = asyncHandler(async (req, res) => {
  * @access  Public
  */
 const getEventSeats = asyncHandler(async (req, res) => {
+  await syncCompletedEvents();
   const { eventId } = req.params;
   const now = new Date();
 
@@ -268,7 +367,9 @@ const getEventSeats = asyncHandler(async (req, res) => {
       endTime: event.endTime,
       pricePerSeat: event.pricePerSeat,
       totalSeats: seatGrid.length || event.totalSeats,
-      availableSeats: availableSeatsCount
+      availableSeats: availableSeatsCount,
+      status: (event.endTime && new Date(event.endTime) <= now) || event.status === 'Completed' ? 'Completed' : (event.status || 'Pending'),
+      eventStatus: (event.endTime && new Date(event.endTime) <= now) || event.status === 'Completed' ? 'Completed' : (event.status || 'Pending')
     },
     seats: seatGrid
   });
@@ -280,6 +381,7 @@ const getEventSeats = asyncHandler(async (req, res) => {
  * @access  Public
  */
 const getEventBySlug = asyncHandler(async (req, res) => {
+  await syncCompletedEvents();
   let { category, slug } = req.params;
 
   // Support single parameter routes like /slug/:slug or /:slug
@@ -381,7 +483,9 @@ const getEventBySlug = asyncHandler(async (req, res) => {
       endTime: event.endTime,
       pricePerSeat: event.pricePerSeat,
       totalSeats: seatGrid.length || event.totalSeats,
-      availableSeats: availableSeatsCount
+      availableSeats: availableSeatsCount,
+      status: (event.endTime && new Date(event.endTime) <= now) || event.status === 'Completed' ? 'Completed' : (event.status || 'Pending'),
+      eventStatus: (event.endTime && new Date(event.endTime) <= now) || event.status === 'Completed' ? 'Completed' : (event.status || 'Pending')
     },
     seats: seatGrid
   });
@@ -412,13 +516,38 @@ const createEvent = asyncHandler(async (req, res) => {
     });
   }
 
+  // Validate start & end time
+  const start = new Date(startTime);
+  const end = new Date(endTime);
+
+  if (isNaN(start.getTime())) {
+    return res.status(400).json({
+      success: false,
+      message: 'Invalid start time format. Please provide a valid date and time.'
+    });
+  }
+
+  if (isNaN(end.getTime())) {
+    return res.status(400).json({
+      success: false,
+      message: 'Invalid end time format. Please provide a valid date and time.'
+    });
+  }
+
+  if (end <= start) {
+    return res.status(400).json({
+      success: false,
+      message: 'End time must be later than start time.'
+    });
+  }
+
   const seatCount = parseInt(totalSeats, 10) || 40;
   const newEvent = await Event.create({
     title,
     description,
     venue,
-    startTime: new Date(startTime),
-    endTime: new Date(endTime),
+    startTime: start,
+    endTime: end,
     pricePerSeat: Number(pricePerSeat),
     category: category || 'Other',
     imageUrl: imageUrl || '',
@@ -453,10 +582,104 @@ const createEvent = asyncHandler(async (req, res) => {
   });
 });
 
+/**
+ * @route   DELETE /api/events/:eventId
+ * @desc    Delete an event and its associated seats
+ * @access  Private (Admin only)
+ */
+const deleteEvent = asyncHandler(async (req, res) => {
+  const { eventId } = req.params;
+  const event = await Event.findById(eventId);
+  if (!event) {
+    return res.status(404).json({
+      success: false,
+      message: 'Event not found'
+    });
+  }
+
+  // Delete associated seats and any seat holds
+  await Seat.deleteMany({ eventId: event._id });
+  await Event.findByIdAndDelete(eventId);
+
+  return res.status(200).json({
+    success: true,
+    message: `Event "${event.title}" and its seats deleted successfully`
+  });
+});
+
+/**
+ * @route   GET /api/events/admin/stats
+ * @desc    Get statistics overview for admin panel
+ * @access  Private (Admin only)
+ */
+const getAdminStats = asyncHandler(async (req, res) => {
+  const Booking = require('../models/Booking');
+  const User = require('../models/User');
+
+  const [totalEvents, totalSeats, totalBookings, totalUsers, confirmedBookings] = await Promise.all([
+    Event.countDocuments({}),
+    Seat.countDocuments({}),
+    Booking.countDocuments({ status: 'CONFIRMED' }),
+    User.countDocuments({}),
+    Booking.find({ status: 'CONFIRMED' }, 'totalPrice')
+  ]);
+
+  const totalRevenue = confirmedBookings.reduce((sum, b) => sum + (b.totalPrice || 0), 0);
+
+  return res.status(200).json({
+    success: true,
+    stats: {
+      totalEvents,
+      totalSeats,
+      totalBookings,
+      totalUsers,
+      totalRevenue
+    }
+  });
+});
+
+/**
+ * @route   PATCH /api/events/:eventId/status
+ * @desc    Admin updates event status
+ * @access  Private (Admin only)
+ */
+const updateEventStatus = asyncHandler(async (req, res) => {
+  const { eventId } = req.params;
+  const { status } = req.body;
+
+  const validStatuses = ['Pending', 'In Progress', 'Completed'];
+  if (!status || !validStatuses.includes(status)) {
+    return res.status(400).json({
+      success: false,
+      message: `Invalid status "${status}". Allowed values: ${validStatuses.join(', ')}`
+    });
+  }
+
+  const event = await Event.findById(eventId);
+  if (!event) {
+    return res.status(404).json({
+      success: false,
+      message: 'Event not found'
+    });
+  }
+
+  event.status = status;
+  await event.save();
+
+  return res.status(200).json({
+    success: true,
+    message: `Event status updated to "${status}" successfully`,
+    data: event
+  });
+});
+
 module.exports = {
   getEvents,
   getEventSeats,
   getEventBySlug,
-  createEvent
+  createEvent,
+  deleteEvent,
+  getAdminStats,
+  updateEventStatus
 };
 

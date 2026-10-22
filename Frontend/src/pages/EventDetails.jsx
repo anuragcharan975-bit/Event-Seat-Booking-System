@@ -12,7 +12,7 @@ import ErrorMessage from '../components/ErrorMessage';
 import ConfirmDialog from '../components/ConfirmDialog';
 import BookingModal from '../components/BookingModal';
 import { formatCurrency } from '../utils/formatCurrency';
-import { formatDate } from '../utils/formatDate';
+import { formatDate, getEventTimingDisplay, isEventOverTime } from '../utils/formatDate';
 import {
   Calendar,
   MapPin,
@@ -27,7 +27,8 @@ import {
   Tag,
   ArrowLeft,
   Info,
-  Users
+  Users,
+  Check
 } from 'lucide-react';
 
 const EventDetails = () => {
@@ -146,6 +147,16 @@ const EventDetails = () => {
   const handleHoldSeats = async () => {
     const currentEventId = event?._id || effectiveEventId;
     if (!currentEventId) return;
+
+    if (eventStatus === 'Completed') {
+      setError('Completed Event! Bookings are closed for this event.');
+      return;
+    }
+
+    if (isOverTime) {
+      setError(`Event Time Over! Booking time has ended. This event closed at ${timing.closeTime}.`);
+      return;
+    }
 
     if (!isAuthenticated) {
       const returnPath = category && slug ? `/events/${category}/${slug}` : `/events/${currentEventId}`;
@@ -283,12 +294,20 @@ const EventDetails = () => {
     );
   }
 
-  // Live seats calculations & availability
-  const isPastEvent = event?.startTime ? new Date(event.startTime) <= new Date() : false;
+  // Live timing & seats calculations
+  const timing = getEventTimingDisplay(event);
+  const isOverTime = timing.isOverTime;
+  const rawStatus = event?.eventStatus || event?.status || 'Pending';
+  const eventStatus = isOverTime || rawStatus === 'Completed' ? 'Completed' : rawStatus;
+  const isCompleted = eventStatus === 'Completed';
+  const isPastEvent = isOverTime;
+  const STATUS_STEPS = ['Pending', 'In Progress', 'Completed'];
+  const stepIdx = STATUS_STEPS.indexOf(eventStatus);
+  const safeStepIndex = stepIdx === -1 ? 0 : stepIdx;
   const availableSeatsCount = seats.filter((s) => s.status === 'AVAILABLE').length;
   const totalSeatsCount = event?.totalSeats || seats.length;
   const isSoldOut = availableSeatsCount === 0;
-  const canBook = !isPastEvent && !isSoldOut;
+  const canBook = !isCompleted && !isSoldOut;
 
   // Calculate pricing & seat data
   const myHeldSeatIds = activeHold ? activeHold.seats.map((s) => s.id || s._id) : [];
@@ -303,6 +322,16 @@ const EventDetails = () => {
 
   // Handle Book Now button click -> Opens BookingModal with summary
   const handleBookNow = () => {
+    if (eventStatus === 'Completed') {
+      setError('Completed Event! Bookings are closed for this event.');
+      return;
+    }
+
+    if (isOverTime) {
+      setError(`Event Time Over! Booking time has ended. This event closed at ${timing.closeTime}.`);
+      return;
+    }
+
     if (!canBook) return;
 
     if (!isAuthenticated) {
@@ -397,7 +426,34 @@ const EventDetails = () => {
                   </span>
                 )}
 
-                {isPastEvent ? (
+                {/* Lifecycle Event Status Badge */}
+                <span
+                  className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border shadow-xs ${
+                    isCompleted
+                      ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                      : eventStatus === 'In Progress'
+                      ? 'bg-blue-50 text-blue-800 border-blue-300'
+                      : 'bg-amber-50 text-amber-800 border-amber-300'
+                  }`}
+                >
+                  <span
+                    className={`w-2 h-2 rounded-full ${
+                      isCompleted
+                        ? 'bg-emerald-500'
+                        : eventStatus === 'In Progress'
+                        ? 'bg-blue-500 animate-pulse'
+                        : 'bg-amber-500'
+                    }`}
+                  />
+                  <span>Status: {eventStatus}</span>
+                </span>
+
+                {isCompleted ? (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-slate-100 text-slate-700 text-xs font-semibold border border-slate-200">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>Completed</span>
+                  </span>
+                ) : isPastEvent ? (
                   <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-rose-50 text-rose-700 text-xs font-semibold border border-rose-200">
                     <Clock className="w-3.5 h-3.5 text-rose-600" />
                     <span>Event Ended</span>
@@ -419,34 +475,48 @@ const EventDetails = () => {
                 {event.title}
               </h1>
 
-              {/* Event Attributes Badges: Date, Venue, Price, Total Seats, Available Seats */}
-              <div className="flex flex-wrap items-center gap-4 text-xs sm:text-sm text-slate-600 pt-1">
-                <div className="flex items-center gap-1.5">
+              {/* Event Attributes Badges: Date, Open Time, Close Time, Venue, Price, Seats */}
+              <div className="flex flex-wrap items-center gap-2.5 text-xs sm:text-sm text-slate-700 pt-1">
+                <div className="flex items-center gap-1.5 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200">
                   <Calendar className="w-4 h-4 text-sky-600 shrink-0" />
-                  <span>{formatDate(event.startTime)}</span>
+                  <span><strong>Date:</strong> {timing.dateStr || formatDate(event.startTime)}</span>
                 </div>
-                <div className="flex items-center gap-1.5">
+
+                <div className="flex items-center gap-1.5 bg-emerald-50 text-emerald-900 px-3 py-1.5 rounded-xl border border-emerald-200">
+                  <Clock className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span><strong>Open Time:</strong> {timing.openTime}</span>
+                </div>
+
+                <div className="flex items-center gap-1.5 bg-purple-50 text-purple-900 px-3 py-1.5 rounded-xl border border-purple-200">
+                  <Clock className="w-4 h-4 text-purple-600 shrink-0" />
+                  <span><strong>Close Time:</strong> {timing.closeTime}</span>
+                </div>
+
+                <div className="flex items-center gap-1.5 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200">
                   <MapPin className="w-4 h-4 text-sky-600 shrink-0" />
                   <span className="truncate">{event.venue}</span>
                 </div>
-                <div className="flex items-center gap-1.5">
+
+                <div className="flex items-center gap-1.5 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200">
                   <Ticket className="w-4 h-4 text-sky-600 shrink-0" />
                   <span className="font-bold text-slate-900">
                     {formatCurrency(event.pricePerSeat)}
                   </span>
                   <span className="text-xs text-slate-500">/seat</span>
                 </div>
-                <div className="flex items-center gap-1.5">
+
+                <div className="flex items-center gap-1.5 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200">
                   <Users className="w-4 h-4 text-sky-600 shrink-0" />
                   <span>
-                    <strong className="text-slate-900">{totalSeatsCount}</strong> total seats
+                    <strong className="text-slate-900">{totalSeatsCount}</strong> seats
                   </span>
                 </div>
+
                 <div className="flex items-center gap-1.5">
                   <span
-                    className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold ${
+                    className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-bold border ${
                       availableSeatsCount > 0
-                        ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
                         : 'bg-rose-50 text-rose-700 border border-rose-200'
                     }`}
                   >
@@ -466,6 +536,121 @@ const EventDetails = () => {
             </button>
           </div>
 
+          {/* Down a line: Event Lifecycle Progress Tracker (Pending -> In Progress -> Completed) */}
+          <div className="pt-4 border-t border-slate-100">
+            <div className="bg-slate-50/90 rounded-2xl p-4 sm:p-5 border border-slate-200">
+              <div className="flex items-center justify-between mb-4">
+                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                  Event Progress Status
+                </span>
+                <span
+                  className={`font-black px-2.5 py-0.5 rounded-full text-xs border ${
+                    safeStepIndex === 2
+                      ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                      : safeStepIndex === 1
+                      ? 'bg-blue-50 text-blue-800 border-blue-300'
+                      : 'bg-amber-50 text-amber-800 border-amber-300'
+                  }`}
+                >
+                  Current Status: {eventStatus}
+                </span>
+              </div>
+
+              <div className="relative flex items-center justify-between max-w-md mx-auto px-4 py-2">
+                {/* Background Track Line */}
+                <div className="absolute top-[18px] left-8 right-8 h-1.5 bg-slate-200 z-0 rounded-full" />
+
+                {/* Filled Progress Line */}
+                <div
+                  className={`absolute top-[18px] left-8 h-1.5 z-0 rounded-full transition-all duration-700 ${
+                    safeStepIndex === 2
+                      ? 'bg-emerald-500'
+                      : safeStepIndex === 1
+                      ? 'bg-blue-500'
+                      : 'bg-amber-400'
+                  }`}
+                  style={{
+                    width:
+                      safeStepIndex === 0
+                        ? '0%'
+                        : safeStepIndex === 1
+                        ? 'calc(50% - 16px)'
+                        : 'calc(100% - 64px)'
+                  }}
+                />
+
+                {/* Step 1: Pending */}
+                <div className="relative z-10 flex flex-col items-center">
+                  <div
+                    className={`w-9 h-9 rounded-full flex items-center justify-center font-black text-xs transition-all ${
+                      safeStepIndex > 0
+                        ? 'bg-emerald-500 text-white shadow-xs'
+                        : 'bg-amber-500 text-white ring-4 ring-amber-100 shadow-md scale-105'
+                    }`}
+                  >
+                    {safeStepIndex > 0 ? <Check className="w-4 h-4" /> : '1'}
+                  </div>
+                  <span
+                    className={`text-xs mt-1.5 font-bold ${
+                      safeStepIndex === 0 ? 'text-amber-800 font-extrabold' : 'text-slate-700'
+                    }`}
+                  >
+                    Pending
+                  </span>
+                  <span className="text-[10px] text-slate-400 hidden sm:inline">Scheduled</span>
+                </div>
+
+                {/* Step 2: In Progress */}
+                <div className="relative z-10 flex flex-col items-center">
+                  <div
+                    className={`w-9 h-9 rounded-full flex items-center justify-center font-black text-xs transition-all ${
+                      safeStepIndex > 1
+                        ? 'bg-emerald-500 text-white shadow-xs'
+                        : safeStepIndex === 1
+                        ? 'bg-blue-600 text-white ring-4 ring-blue-100 shadow-md scale-105 animate-pulse'
+                        : 'bg-white border-2 border-slate-300 text-slate-400'
+                    }`}
+                  >
+                    {safeStepIndex > 1 ? <Check className="w-4 h-4" /> : '2'}
+                  </div>
+                  <span
+                    className={`text-xs mt-1.5 font-bold ${
+                      safeStepIndex === 1
+                        ? 'text-blue-800 font-extrabold'
+                        : safeStepIndex > 1
+                        ? 'text-slate-700'
+                        : 'text-slate-400'
+                    }`}
+                  >
+                    In Progress
+                  </span>
+                  <span className="text-[10px] text-slate-400 hidden sm:inline">Active</span>
+                </div>
+
+                {/* Step 3: Completed */}
+                <div className="relative z-10 flex flex-col items-center">
+                  <div
+                    className={`w-9 h-9 rounded-full flex items-center justify-center font-black text-xs transition-all ${
+                      safeStepIndex === 2
+                        ? 'bg-emerald-600 text-white ring-4 ring-emerald-100 shadow-md scale-105'
+                        : 'bg-white border-2 border-slate-300 text-slate-400'
+                    }`}
+                  >
+                    {safeStepIndex === 2 ? <Check className="w-4 h-4" /> : '3'}
+                  </div>
+                  <span
+                    className={`text-xs mt-1.5 font-bold ${
+                      safeStepIndex === 2 ? 'text-emerald-800 font-extrabold' : 'text-slate-400'
+                    }`}
+                  >
+                    Completed
+                  </span>
+                  <span className="text-[10px] text-slate-400 hidden sm:inline">Finished</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
           {/* About This Event: Event Description */}
           {event.description && (
             <div className="pt-4 border-t border-slate-100">
@@ -481,15 +666,57 @@ const EventDetails = () => {
         </div>
       </div>
 
-      {/* Past Event Banner */}
-      {isPastEvent && (
-        <div className="bg-rose-50 border border-rose-200 text-rose-800 rounded-2xl p-4 flex items-center gap-3 shadow-sm">
-          <XCircle className="w-5 h-5 text-rose-600 shrink-0" />
+      {/* Event Timing & Booking Status Banner */}
+      {eventStatus === 'Completed' ? (
+        <div className="bg-emerald-50 border border-emerald-300 text-emerald-900 rounded-2xl p-4 sm:p-5 flex items-center gap-3.5 shadow-sm">
+          <CheckCircle2 className="w-6 h-6 text-emerald-600 shrink-0" />
           <div>
-            <h4 className="text-sm font-bold text-rose-900">Event Date Passed</h4>
-            <p className="text-xs text-rose-700 mt-0.5">
-              This event occurred on {formatDate(event.startTime)}. Ticket bookings are no longer available.
+            <h4 className="text-sm font-bold text-emerald-950 flex items-center gap-2">
+              <span>Completed Event</span>
+              <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-900 border border-emerald-300">
+                Status: Completed
+              </span>
+            </h4>
+            <p className="text-xs text-emerald-800 mt-1">
+              This event is completed. Ticket bookings are closed for this event.
             </p>
+          </div>
+        </div>
+      ) : isOverTime ? (
+        <div className="bg-rose-50 border border-rose-200 text-rose-800 rounded-2xl p-4 sm:p-5 flex items-center gap-3.5 shadow-sm">
+          <XCircle className="w-6 h-6 text-rose-600 shrink-0" />
+          <div>
+            <h4 className="text-sm font-bold text-rose-900 flex items-center gap-2">
+              <span>⏰ Event Time Over!</span>
+              <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-rose-200 text-rose-900 border border-rose-300">
+                Closed at {timing.closeTime}
+              </span>
+            </h4>
+            <p className="text-xs text-rose-700 mt-1">
+              Event booking time has ended. This event closed at <strong>{timing.closeTime}</strong> on {timing.dateStr}. Ticket bookings are over time and no longer available.
+            </p>
+          </div>
+        </div>
+      ) : (
+        <div className="bg-emerald-50/90 border border-emerald-200 text-emerald-950 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
+          <div className="flex items-start gap-3">
+            <div className="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-700 flex items-center justify-center shrink-0 mt-0.5">
+              <Clock className="w-5 h-5 text-emerald-600" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h4 className="text-sm font-black text-emerald-950">
+                  🟢 Seat Bookings Open
+                </h4>
+              </div>
+              <p className="text-xs text-emerald-800 mt-1">
+                Event Date: <strong>{timing.dateStr}</strong> • Open Time: <strong>{timing.openTime}</strong> • Close Time: <strong>{timing.closeTime}</strong>
+              </p>
+            </div>
+          </div>
+          <div className="text-xs font-extrabold text-emerald-800 bg-emerald-100/90 px-3.5 py-2 rounded-xl border border-emerald-200 shrink-0 self-start sm:self-center flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
+            <span>Bookings open until {timing.closeTime}</span>
           </div>
         </div>
       )}
@@ -629,14 +856,25 @@ const EventDetails = () => {
 
             {/* Action Buttons */}
             <div className="space-y-3 pt-2">
-              {isPastEvent ? (
+              {eventStatus === 'Completed' ? (
                 <button
                   type="button"
                   disabled
-                  className="w-full py-3.5 px-4 rounded-xl text-sm font-bold text-slate-400 bg-slate-100 border border-slate-200 cursor-not-allowed flex items-center justify-center gap-2"
+                  className="w-full py-3.5 px-4 rounded-xl text-sm font-bold text-slate-600 bg-slate-100 border border-slate-300 cursor-not-allowed flex items-center justify-center gap-2"
                 >
-                  <Clock className="w-4 h-4" />
-                  <span>Event Date Passed</span>
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                  <span>Completed Event</span>
+                </button>
+              ) : isOverTime ? (
+                <button
+                  type="button"
+                  disabled
+                  className="w-full py-3.5 px-4 rounded-xl text-sm font-bold text-rose-700 bg-rose-50 border border-rose-200 cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  <Clock className="w-4 h-4 text-rose-600" />
+                  <span>
+                    Event Time Over (Closed at {timing.closeTime})
+                  </span>
                 </button>
               ) : isSoldOut ? (
                 <button
@@ -649,6 +887,10 @@ const EventDetails = () => {
                 </button>
               ) : !activeHold ? (
                 <>
+                  <div className="text-xs text-emerald-700 font-semibold flex items-center gap-1.5 px-1 pb-0.5">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping shrink-0" />
+                    <span>Seat bookings open now! Closes at {timing.closeTime}</span>
+                  </div>
                   <button
                     type="button"
                     onClick={handleBookNow}

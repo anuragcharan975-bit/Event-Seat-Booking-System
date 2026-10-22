@@ -53,11 +53,12 @@ const register = asyncHandler(async (req, res) => {
   const salt = await bcrypt.genSalt(10);
   const passwordHash = await bcrypt.hash(password, salt);
 
-  // Create user
+  // Create user - strictly enforce 'user' role on public registration
   const user = await User.create({
     name: name.trim(),
     email: normalizedEmail,
-    passwordHash
+    passwordHash,
+    role: 'user'
   });
 
   const token = generateToken(user);

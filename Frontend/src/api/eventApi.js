@@ -1,12 +1,22 @@
 import api from './axios';
 
 export const eventApi = {
-  getEvents: async ({ page = 1, limit = 20, search = '', category = '', date = '' } = {}) => {
+  getEvents: async ({
+    page = 1,
+    limit = 5,
+    search = '',
+    category = '',
+    status = '',
+    sort = '',
+    date = ''
+  } = {}) => {
     const params = new URLSearchParams();
     if (page) params.append('page', page);
     if (limit) params.append('limit', limit);
     if (search && search.trim()) params.append('search', search.trim());
     if (category && category !== 'all') params.append('category', category.trim());
+    if (status && status !== 'all') params.append('status', status.trim());
+    if (sort) params.append('sort', sort.trim());
     if (date && date.trim()) params.append('date', date.trim());
 
     const queryString = params.toString();

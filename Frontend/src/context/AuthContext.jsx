@@ -70,7 +70,11 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (email, password) => {
     const res = await authApi.login({ email, password });
-    if (res.success) {
+    if (res.success && res.token) {
+      localStorage.setItem('token', res.token);
+      if (res.user) {
+        localStorage.setItem('user', JSON.stringify(res.user));
+      }
       setToken(res.token);
       setUser(res.user);
     }
@@ -79,7 +83,11 @@ export const AuthProvider = ({ children }) => {
 
   const register = async (name, email, password) => {
     const res = await authApi.register({ name, email, password });
-    if (res.success) {
+    if (res.success && res.token) {
+      localStorage.setItem('token', res.token);
+      if (res.user) {
+        localStorage.setItem('user', JSON.stringify(res.user));
+      }
       setToken(res.token);
       setUser(res.user);
     }
@@ -102,6 +110,7 @@ export const AuthProvider = ({ children }) => {
     user,
     token,
     isAuthenticated: Boolean(token && user),
+    isAdmin: Boolean(user && user.role === 'admin'),
     loading,
     login,
     register,

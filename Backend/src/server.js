@@ -1,8 +1,10 @@
 const app = require('./app');
 const mongoose = require('mongoose');
+const bcrypt = require('bcryptjs');
 const { connectDB } = require('./config/db');
 const Event = require('./models/Event');
 const Seat = require('./models/Seat');
+const User = require('./models/User');
 const { slugify, generateUniqueEventSlug } = require('./utils/slugify');
 
 const PORT = process.env.PORT || 5000;
@@ -122,6 +124,83 @@ const seedInitialDataIfNeeded = async () => {
         startTime: new Date(now.getTime() + 15 * 24 * 60 * 60 * 1000),
         endTime: new Date(now.getTime() + 15 * 24 * 60 * 60 * 1000 + 5 * 60 * 60 * 1000),
         pricePerSeat: 1400,
+        totalSeats: 40
+      },
+      {
+        title: 'Symphony Under the Stars Orchestra',
+        category: 'Music',
+        imageUrl: 'https://images.unsplash.com/photo-1465847899084-d164df4dedc6?auto=format&fit=crop&w=800&q=80',
+        description: 'An enchanting open-air classical symphony featuring world-class violinists, grand piano concertos, and timeless orchestral masterpieces.',
+        venue: 'Open Sky Amphitheatre, Garden Arena',
+        startTime: new Date(now.getTime() + 8 * 24 * 60 * 60 * 1000),
+        endTime: new Date(now.getTime() + 8 * 24 * 60 * 60 * 1000 + 3 * 60 * 60 * 1000),
+        pricePerSeat: 950,
+        totalSeats: 40
+      },
+      {
+        title: 'International Salsa & Bachata Night',
+        category: 'Dance',
+        imageUrl: 'https://images.unsplash.com/photo-1508700115892-45ecd05ae2ad?auto=format&fit=crop&w=800&q=80',
+        description: 'Feel the rhythm of Latin beats with sensational salsa and bachata showcases, live percussion, and interactive social dancing.',
+        venue: 'Rhythm Ballroom & Lounge, Stage 1',
+        startTime: new Date(now.getTime() + 13 * 24 * 60 * 60 * 1000),
+        endTime: new Date(now.getTime() + 13 * 24 * 60 * 60 * 1000 + 4 * 60 * 60 * 1000),
+        pricePerSeat: 800,
+        totalSeats: 40
+      },
+      {
+        title: 'Midnight Improv & Roast Battles',
+        category: 'Comedy',
+        imageUrl: 'https://images.unsplash.com/photo-1585699324551-f6c309eedeca?auto=format&fit=crop&w=800&q=80',
+        description: 'Non-stop laughter with unscripted audience-driven improv sketches, witty roasts, and top viral stand-up comedians.',
+        venue: 'The Underground Comedy Cellar, Room 4',
+        startTime: new Date(now.getTime() + 16 * 24 * 60 * 60 * 1000),
+        endTime: new Date(now.getTime() + 16 * 24 * 60 * 60 * 1000 + 2 * 60 * 60 * 1000),
+        pricePerSeat: 650,
+        totalSeats: 40
+      },
+      {
+        title: 'Pro Boxing & MMA Championship Fight Night',
+        category: 'Sports',
+        imageUrl: 'https://images.unsplash.com/photo-1549719386-74dfcbf7dbed?auto=format&fit=crop&w=800&q=80',
+        description: 'High-octane boxing title bouts and MMA lightweight clashes featuring champion fighters, live ringside action, and heavyweight thrill.',
+        venue: 'Metro Stadium Arena, Ring Center',
+        startTime: new Date(now.getTime() + 22 * 24 * 60 * 60 * 1000),
+        endTime: new Date(now.getTime() + 22 * 24 * 60 * 60 * 1000 + 5 * 60 * 60 * 1000),
+        pricePerSeat: 1500,
+        totalSeats: 40
+      },
+      {
+        title: 'Broadway Musical: Echoes of Eternity',
+        category: 'Theatre',
+        imageUrl: 'https://images.unsplash.com/photo-1507676184212-d03ab07a01bf?auto=format&fit=crop&w=800&q=80',
+        description: 'An awe-inspiring Broadway-style musical drama filled with breathtaking live vocals, dazzling stage costumes, and orchestral storytelling.',
+        venue: 'Grand Majestic Theatre, Main Stage',
+        startTime: new Date(now.getTime() + 26 * 24 * 60 * 60 * 1000),
+        endTime: new Date(now.getTime() + 26 * 24 * 60 * 60 * 1000 + 3 * 60 * 60 * 1000),
+        pricePerSeat: 1350,
+        totalSeats: 40
+      },
+      {
+        title: 'PUBG Battlegrounds India Championship 2026',
+        category: 'Game',
+        imageUrl: 'https://images.unsplash.com/photo-1542751371-adc38448a05e?auto=format&fit=crop&w=800&q=80',
+        description: 'Witness India\'s top PUBG squads battle across Erangel and Miramar for the grand trophy. High-octane survival firefights, pro caster analysis, and live fan arena cheering.',
+        venue: 'Apex Esports Arena, Main Stage',
+        startTime: new Date(now.getTime() + 11 * 24 * 60 * 60 * 1000),
+        endTime: new Date(now.getTime() + 11 * 24 * 60 * 60 * 1000 + 5 * 60 * 60 * 1000),
+        pricePerSeat: 499,
+        totalSeats: 40
+      },
+      {
+        title: 'Clash of Clans (CoC) World Clan War Finals',
+        category: 'Game',
+        imageUrl: 'https://images.unsplash.com/photo-1511512578047-dfb367046420?auto=format&fit=crop&w=800&q=80',
+        description: 'The ultimate Clash of Clans championship! Elite Clans clash in live 5v5 Town Hall 16 war attacks, 3-star strategies, trophy pushes, and exclusive spectator giveaways.',
+        venue: 'CyberHub Gaming Dome, Hall B',
+        startTime: new Date(now.getTime() + 19 * 24 * 60 * 60 * 1000),
+        endTime: new Date(now.getTime() + 19 * 24 * 60 * 60 * 1000 + 4 * 60 * 60 * 1000),
+        pricePerSeat: 450,
         totalSeats: 40
       }
     ];
@@ -255,16 +334,54 @@ const seedInitialDataIfNeeded = async () => {
       console.warn('[Seed Index Warning]:', idxErr.message);
     }
 
+    // Seed default administrator user if missing
+    const adminEmail = 'admin909@gmail.com';
+    const adminPasswordHash = await bcrypt.hash('ADMIN90@9', 10);
+    const existingAdmin = await User.findOne({ email: adminEmail });
+    if (!existingAdmin) {
+      await User.create({
+        name: 'Administrator',
+        email: adminEmail,
+        passwordHash: adminPasswordHash,
+        role: 'admin'
+      });
+      console.log(`[Seed] Created admin account: ${adminEmail}`);
+    } else {
+      existingAdmin.role = 'admin';
+      existingAdmin.passwordHash = adminPasswordHash;
+      await existingAdmin.save();
+      console.log(`[Seed] Verified admin account: ${adminEmail}`);
+    }
+
+    // Ensure all admin and team accounts carry role 'admin'
+    await User.updateMany(
+      {
+        $or: [
+          { email: 'admin909@gmail.com' },
+          { email: 'admin@shopnest.com' },
+          { email: /^admin/i },
+          { email: /anurag/i }
+        ]
+      },
+      { $set: { role: 'admin' } }
+    );
+
     console.log('[Seed] Event category catalog, SEO slugs, and images synchronized.');
   } catch (seedErr) {
     console.error('[Seed Error] Failed to seed/synchronize demonstration data:', seedErr.message);
   }
 };
 
+const { syncCompletedEvents } = require('./services/eventLifecycleService');
+
 const startServer = async () => {
   try {
     await connectDB();
     await seedInitialDataIfNeeded();
+    await syncCompletedEvents();
+
+    // Periodically sync completed events every 30 seconds
+    setInterval(syncCompletedEvents, 30 * 1000);
 
     const server = app.listen(PORT, () => {
       console.log(`=======================================================`);

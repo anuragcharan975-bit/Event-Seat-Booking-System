@@ -20,10 +20,21 @@ import {
   Users,
   Compass,
   CheckCircle2,
-  ChevronRight
+  ChevronRight,
+  Gamepad2
 } from 'lucide-react';
 
 const CATEGORIES = [
+  {
+    id: 'game',
+    name: 'Game & Esports',
+    desc: 'PUBG Battlegrounds, Clash of Clans tournaments & pro gaming leagues',
+    icon: Gamepad2,
+    color: 'from-violet-600 to-fuchsia-600',
+    bg: 'bg-violet-50',
+    text: 'text-violet-800',
+    border: 'border-violet-200'
+  },
   {
     id: 'music',
     name: 'Music & Concerts',

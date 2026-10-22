@@ -97,6 +97,13 @@ const confirmBooking = async ({ holdId, userId, clockNow = null }) => {
     throw error;
   }
 
+  // Verify Event is not completed
+  if (event.status === 'Completed') {
+    const error = new Error('Completed Event! Bookings are closed for this event.');
+    error.statusCode = 400;
+    throw error;
+  }
+
   // Calculate authoritative amount on the server
   const trustedAmount = event.pricePerSeat * hold.seatIds.length;
   const bookingReference = generateBookingReference();
@@ -499,14 +506,23 @@ const createDirectBooking = async ({ userId, eventId, seatIds, clockNow = null }
     throw error;
   }
 
-  // 4. Verify event date has not passed
-  if (new Date(event.startTime) <= now) {
-    const error = new Error('Cannot book tickets for past or ongoing events');
+  // 4. Verify Event is not completed
+  if (event.status === 'Completed') {
+    const error = new Error('Completed Event! Bookings are closed for this event.');
     error.statusCode = 400;
     throw error;
   }
 
-  // 5. Verify all requested seats exist and belong to this event
+  // 5. Verify Event has not passed its close time (endTime)
+  const closeTime = event.endTime ? new Date(event.endTime) : (event.startTime ? new Date(event.startTime) : null);
+  if (closeTime && now > closeTime) {
+    const formattedCloseTime = closeTime.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true });
+    const error = new Error(`Event Time Over! Booking time has ended. This event closed at ${formattedCloseTime}.`);
+    error.statusCode = 400;
+    throw error;
+  }
+
+  // 6. Verify all requested seats exist and belong to this event
   const seats = await Seat.find({
     _id: { $in: seatIds },
     eventId: event._id
