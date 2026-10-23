@@ -142,16 +142,16 @@ const Home = () => {
   return (
     <div className="space-y-16 animate-fadeIn pb-12">
       {/* 1. Hero Section */}
-      <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-slate-900 via-sky-950 to-slate-900 text-white p-8 sm:p-14 lg:p-16 shadow-2xl border border-sky-900/40">
+      <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-slate-950 via-slate-900 to-sky-950 text-white p-8 sm:p-14 lg:p-16 shadow-2xl border border-sky-900/40">
         <div className="relative z-10 max-w-3xl">
-          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-sky-500/20 text-sky-300 text-xs font-semibold mb-6 border border-sky-500/30 backdrop-blur-md">
+          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-sky-500/15 text-sky-300 text-xs font-bold mb-6 border border-sky-500/30 backdrop-blur-md shadow-inner">
             <Sparkles className="w-4 h-4 text-sky-400" />
             <span>High-Concurrency Live Ticket Engine</span>
           </div>
 
-          <h1 className="text-3xl sm:text-5xl lg:text-6xl font-black tracking-tight mb-6 leading-[1.15]">
+          <h1 className="text-3xl sm:text-5xl lg:text-6xl font-black tracking-tight mb-6 leading-[1.12]">
             Discover, Reserve & Experience{' '}
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-sky-400 via-teal-300 to-emerald-300">
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-sky-400 via-teal-300 to-indigo-300">
               Live Events
             </span>
           </h1>
@@ -163,7 +163,7 @@ const Home = () => {
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4">
             <Link
               to="/events"
-              className="inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-2xl text-sm sm:text-base font-bold text-white bg-sky-600 hover:bg-sky-500 shadow-lg shadow-sky-600/30 hover:shadow-sky-600/50 hover:scale-[1.02] active:scale-98 transition-all"
+              className="inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-2xl text-sm sm:text-base font-bold text-white bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 shadow-lg shadow-sky-600/30 hover:shadow-sky-600/50 hover:scale-[1.02] active:scale-98 transition-all"
             >
               <span>Explore All Events</span>
               <ArrowRight className="w-4 h-4" />
@@ -171,7 +171,7 @@ const Home = () => {
 
             <a
               href="#categories"
-              className="inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-2xl text-sm sm:text-base font-semibold text-slate-200 bg-white/10 hover:bg-white/15 border border-white/20 backdrop-blur-md transition-all"
+              className="inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-2xl text-sm sm:text-base font-semibold text-slate-200 bg-white/10 hover:bg-white/15 border border-white/20 backdrop-blur-md transition-all hover:scale-[1.02]"
             >
               <span>Browse Categories</span>
             </a>
@@ -179,35 +179,43 @@ const Home = () => {
 
           {/* Quick Stats Grid */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-12 pt-8 border-t border-white/10 text-xs text-slate-300">
-            <div className="flex items-center gap-2">
-              <Clock className="w-4 h-4 text-sky-400 shrink-0" />
+            <div className="flex items-center gap-2.5 p-2 rounded-xl bg-white/5 border border-white/5">
+              <div className="p-2 rounded-lg bg-sky-500/20 text-sky-400">
+                <Clock className="w-4 h-4 shrink-0" />
+              </div>
               <div>
                 <p className="font-bold text-white text-sm">120s Hold</p>
                 <p className="text-[11px] text-slate-400">Atomic Seat Lock</p>
               </div>
             </div>
 
-            <div className="flex items-center gap-2">
-              <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
+            <div className="flex items-center gap-2.5 p-2 rounded-xl bg-white/5 border border-white/5">
+              <div className="p-2 rounded-lg bg-emerald-500/20 text-emerald-400">
+                <ShieldCheck className="w-4 h-4 shrink-0" />
+              </div>
               <div>
                 <p className="font-bold text-white text-sm">ACID Safe</p>
                 <p className="text-[11px] text-slate-400">Zero Race Conditions</p>
               </div>
             </div>
 
-            <div className="flex items-center gap-2">
-              <Ticket className="w-4 h-4 text-amber-400 shrink-0" />
+            <div className="flex items-center gap-2.5 p-2 rounded-xl bg-white/5 border border-white/5">
+              <div className="p-2 rounded-lg bg-amber-500/20 text-amber-400">
+                <Ticket className="w-4 h-4 shrink-0" />
+              </div>
               <div>
                 <p className="font-bold text-white text-sm">Visual Grid</p>
-                <p className="text-[11px] text-slate-400">Interactive Seat Map</p>
+                <p className="text-[11px] text-slate-400">Interactive Map</p>
               </div>
             </div>
 
-            <div className="flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 text-teal-400 shrink-0" />
+            <div className="flex items-center gap-2.5 p-2 rounded-xl bg-white/5 border border-white/5">
+              <div className="p-2 rounded-lg bg-teal-500/20 text-teal-400">
+                <CheckCircle2 className="w-4 h-4 shrink-0" />
+              </div>
               <div>
                 <p className="font-bold text-white text-sm">Instant E-Ticket</p>
-                <p className="text-[11px] text-slate-400">Direct Confirmation</p>
+                <p className="text-[11px] text-slate-400">Live Confirmation</p>
               </div>
             </div>
           </div>
@@ -215,7 +223,7 @@ const Home = () => {
 
         {/* Ambient background decoration */}
         <div className="absolute -right-16 -bottom-16 w-[450px] h-[450px] bg-sky-500/15 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute right-1/4 -top-20 w-80 h-80 bg-teal-500/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute right-1/4 -top-20 w-80 h-80 bg-indigo-500/15 rounded-full blur-3xl pointer-events-none" />
       </section>
 
       {/* 2. Browse Categories Section */}

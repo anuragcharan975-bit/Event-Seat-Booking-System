@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Calendar, MapPin, Ticket, ArrowRight, Tag, Check, Clock } from 'lucide-react';
+import { Calendar, MapPin, Ticket, ArrowRight, Tag, Check, Clock, Star } from 'lucide-react';
 import { formatCurrency } from '../utils/formatCurrency';
 import { formatDate, getEventTimingDisplay } from '../utils/formatDate';
 import { slugify } from '../utils/slugify';
@@ -195,8 +195,8 @@ const EventCard = ({ event }) => {
       </div>
 
       <div className="p-6">
-        {/* Status Badge */}
-        <div className="flex items-center gap-2 mb-2.5">
+        {/* Status & Review Rating Badges */}
+        <div className="flex items-center justify-between gap-2 mb-2.5">
           <span
             className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold border ${
               isCompleted
@@ -216,6 +216,14 @@ const EventCard = ({ event }) => {
               }`}
             />
             <span>{eventStatus}</span>
+          </span>
+
+          <span className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-800 bg-amber-50/90 border border-amber-200/90 px-2 py-0.5 rounded-full">
+            <Star className="w-3 h-3 fill-amber-500 text-amber-500 shrink-0" />
+            <span>{event.averageRating > 0 ? event.averageRating.toFixed(1) : 'New'}</span>
+            {event.totalReviews > 0 && (
+              <span className="text-[10px] text-amber-600 font-semibold">({event.totalReviews})</span>
+            )}
           </span>
         </div>
 
@@ -378,14 +386,14 @@ const EventCard = ({ event }) => {
 
         <Link
           to={eventUrl}
-          className={`py-2.5 px-4 rounded-xl text-xs sm:text-sm font-semibold flex items-center gap-1.5 transition-all duration-200 ${
+          className={`py-2.5 px-4 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-1.5 transition-all duration-200 ${
             isCompleted
               ? 'bg-slate-100 text-slate-600 hover:bg-slate-200 border border-slate-300'
               : timing.isOverTime
               ? 'bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200'
               : isSoldOut
               ? 'bg-slate-200 text-slate-400 cursor-not-allowed pointer-events-none'
-              : 'bg-sky-600 text-white hover:bg-sky-500 shadow-md shadow-sky-600/20 active:scale-95'
+              : 'bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 text-white shadow-md shadow-sky-600/25 hover:shadow-sky-600/40 active:scale-95'
           }`}
         >
           <span>

@@ -1,3 +1,6 @@
+const mongoose = require('mongoose');
+const Booking = require('../models/Booking');
+const Event = require('../models/Event');
 const seatHoldService = require('../services/seatHoldService');
 const bookingService = require('../services/bookingService');
 const asyncHandler = require('../utils/asyncHandler');
@@ -90,14 +93,43 @@ const releaseHold = asyncHandler(async (req, res) => {
 const getMyActiveHold = asyncHandler(async (req, res) => {
   const { eventId } = req.params;
 
+  let eventMongoId = eventId;
+  if (!mongoose.Types.ObjectId.isValid(eventId)) {
+    const foundEvent = await Event.findOne({ slug: eventId }).select('_id');
+    if (foundEvent) {
+      eventMongoId = foundEvent._id;
+    }
+  }
+
   const activeHold = await seatHoldService.getUserActiveHold({
     userId: req.user.id,
-    eventId
+    eventId: eventMongoId
   });
+
+  let userBookedSeatsCount = 0;
+  if (req.user?.id && mongoose.Types.ObjectId.isValid(eventMongoId)) {
+    const existingBookings = await Booking.find({
+      userId: req.user.id,
+      eventId: eventMongoId,
+      status: 'CONFIRMED'
+    });
+    userBookedSeatsCount = existingBookings.reduce(
+      (sum, b) => sum + (b.seatIds ? b.seatIds.length : 0),
+      0
+    );
+  }
+
+  const maxSeatsAllowed = 4;
+  const remainingSeatsAllowed = Math.max(0, maxSeatsAllowed - userBookedSeatsCount);
+  const isMaxSeatsReached = userBookedSeatsCount >= maxSeatsAllowed;
 
   return res.status(200).json({
     success: true,
-    data: activeHold
+    data: activeHold,
+    userBookedSeatsCount,
+    maxSeatsAllowed,
+    remainingSeatsAllowed,
+    isMaxSeatsReached
   });
 });
 

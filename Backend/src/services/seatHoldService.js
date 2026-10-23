@@ -2,6 +2,7 @@ const mongoose = require('mongoose');
 const Event = require('../models/Event');
 const Seat = require('../models/Seat');
 const SeatHold = require('../models/SeatHold');
+const Booking = require('../models/Booking');
 const { supportsTransactions } = require('../config/db');
 
 /**
@@ -53,7 +54,33 @@ const createSeatHold = async ({
     throw error;
   }
 
-  // 4. Verify all requested seats exist and belong to this event
+  // 4. Verify user maximum seat limit (4 seats per user per event)
+  if (userId) {
+    const existingBookings = await Booking.find({
+      userId,
+      eventId: event._id,
+      status: 'CONFIRMED'
+    });
+    const alreadyBookedSeatsCount = existingBookings.reduce(
+      (sum, b) => sum + (b.seatIds ? b.seatIds.length : 0),
+      0
+    );
+
+    if (alreadyBookedSeatsCount >= 4) {
+      const error = new Error('You already booked your max seats for this event. Maximum limit is 4 seats per event.');
+      error.statusCode = 400;
+      throw error;
+    }
+
+    if (alreadyBookedSeatsCount + seatIds.length > 4) {
+      const remaining = 4 - alreadyBookedSeatsCount;
+      const error = new Error(`You can only book up to ${remaining} more seat(s) for this event. Maximum limit is 4 seats per event.`);
+      error.statusCode = 400;
+      throw error;
+    }
+  }
+
+  // 5. Verify all requested seats exist and belong to this event
   const seats = await Seat.find({
     _id: { $in: seatIds },
     eventId: event._id

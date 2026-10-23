@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { Link } from 'react-router-dom';
 import {
   Calendar,
   PlusCircle,
@@ -18,6 +19,7 @@ import {
   Tag,
   TrendingUp,
   ShieldCheck,
+  ShieldAlert,
   Check,
   X,
   Mail,
@@ -34,7 +36,11 @@ import {
   Edit3,
   UploadCloud,
   Camera,
-  FolderPlus
+  FolderPlus,
+  ArrowLeft,
+  Filter,
+  Star,
+  MessageSquare
 } from 'lucide-react';
 import adminApi from '../api/adminApi';
 import Loading from '../components/Loading';
@@ -292,7 +298,7 @@ const AdminDashboard = () => {
   const [loggingIn, setLoggingIn] = useState(false);
   const [loginError, setLoginError] = useState('');
 
-  // Active Tab: 'overview' | 'events' | 'users' | 'bookings'
+  // Active Tab: 'overview' | 'events' | 'users' | 'bookings' | 'reviews'
   const [activeTab, setActiveTab] = useState('overview');
 
   // Data states
@@ -300,15 +306,25 @@ const AdminDashboard = () => {
   const [events, setEvents] = useState([]);
   const [usersList, setUsersList] = useState([]);
   const [bookingsList, setBookingsList] = useState([]);
+  const [reviewsList, setReviewsList] = useState([]);
 
   // Loading states
   const [loadingStats, setLoadingStats] = useState(true);
   const [loadingEvents, setLoadingEvents] = useState(false);
   const [loadingUsers, setLoadingUsers] = useState(false);
   const [loadingBookings, setLoadingBookings] = useState(false);
+  const [loadingReviews, setLoadingReviews] = useState(false);
+
+  // Reviews search/filter states
+  const [selectedReviewEventId, setSelectedReviewEventId] = useState('all');
+  const [reviewRatingFilter, setReviewRatingFilter] = useState('all');
+  const [reviewSearch, setReviewSearch] = useState('');
+  const [reviewToDelete, setReviewToDelete] = useState(null);
 
   // Search/Filter states
   const [eventSearch, setEventSearch] = useState('');
+  const [selectedEventCategory, setSelectedEventCategory] = useState('all');
+  const [showAddEventForm, setShowAddEventForm] = useState(false);
   const [userSearch, setUserSearch] = useState('');
   const [bookingSearch, setBookingSearch] = useState('');
   const [bookingStatusFilter, setBookingStatusFilter] = useState('all');
@@ -415,6 +431,66 @@ const AdminDashboard = () => {
     } finally {
       setLoadingBookings(false);
     }
+
+    try {
+      setLoadingReviews(true);
+      const res = await adminApi.getReviews();
+      if (res.success) {
+        setReviewsList(res.data || []);
+      }
+    } catch (err) {
+      console.error('Failed to load reviews:', err);
+    } finally {
+      setLoadingReviews(false);
+    }
+  };
+
+  // Helper to load reviews specifically
+  const loadReviewsData = async (params = {}) => {
+    try {
+      setLoadingReviews(true);
+      const res = await adminApi.getReviews(params);
+      if (res.success) {
+        setReviewsList(res.data || []);
+      }
+    } catch (err) {
+      console.error('Failed to load reviews:', err);
+    } finally {
+      setLoadingReviews(false);
+    }
+  };
+
+  // Helper to jump to Reviews tab pre-filtered for a specific event
+  const handleViewEventReviews = (eventId) => {
+    setSelectedReviewEventId(eventId || 'all');
+    setReviewSearch('');
+    setReviewRatingFilter('all');
+    setActiveTab('reviews');
+  };
+
+  // Delete a review as admin
+  const handleConfirmDeleteReview = async () => {
+    if (!reviewToDelete) return;
+    try {
+      setActionProcessing(true);
+      const res = await adminApi.deleteReview(reviewToDelete._id);
+      if (res.success) {
+        setReviewsList((prev) => prev.filter((r) => r._id !== reviewToDelete._id));
+        setReviewToDelete(null);
+
+        // Refresh stats and events in background to keep counts up to date
+        const [statsRes, eventsRes] = await Promise.all([
+          adminApi.getStats(),
+          adminApi.getAdminEvents()
+        ]);
+        if (statsRes.success) setStats(statsRes.stats);
+        if (eventsRes.success) setEvents(eventsRes.data || []);
+      }
+    } catch (err) {
+      alert(err.response?.data?.message || 'Failed to delete review');
+    } finally {
+      setActionProcessing(false);
+    }
   };
 
   useEffect(() => {
@@ -423,7 +499,7 @@ const AdminDashboard = () => {
     }
   }, [isAdmin]);
 
-  // Handle direct Admin Sign-In on /admin
+  // Handle direct Admin Sign-In on /system-console-r6t8
   const handleAdminLogin = async (e) => {
     if (e) e.preventDefault();
     setLoginError('');
@@ -433,7 +509,8 @@ const AdminDashboard = () => {
       const res = await login(adminEmail, adminPassword);
       if (res.success) {
         if (res.user?.role !== 'admin') {
-          setLoginError('This account does not have administrator privileges. Please use the admin credentials.');
+          logout();
+          setLoginError('Access denied. This account does not have administrator privileges. Only admin accounts are authorized to log in here.');
         } else {
           setLoginError('');
         }
@@ -441,7 +518,7 @@ const AdminDashboard = () => {
         setLoginError(res.message || 'Invalid administrator email or password.');
       }
     } catch (err) {
-      setLoginError(err.response?.data?.message || 'Authentication failed. Please check admin credentials.');
+      setLoginError(err.response?.data?.message || 'Authentication failed. Please check administrator credentials.');
     } finally {
       setLoggingIn(false);
     }
@@ -603,6 +680,8 @@ const AdminDashboard = () => {
           imageUrl: CATEGORY_DEFINITIONS.find((c) => c.name === 'Game')?.defaultImage || ''
         });
         setMatchedSource(null);
+        setEventFormSuccess('Event created successfully! Added to events catalog.');
+        setShowAddEventForm(false);
         loadDashboardData();
       }
     } catch (err) {
@@ -801,8 +880,31 @@ const AdminDashboard = () => {
     }
   };
 
+  // Helper to count events per category
+  const getCategoryEventCount = (catName) => {
+    if (catName === 'all') return events.length;
+    const catDef = CATEGORY_DEFINITIONS.find((c) => c.name.toLowerCase() === catName.toLowerCase());
+    return events.filter((ev) => {
+      if (!ev.category) return catName.toLowerCase() === 'other';
+      if (catDef) return isCategoryMatch(catDef, ev.category);
+      return ev.category.toLowerCase() === catName.toLowerCase();
+    }).length;
+  };
+
   // Filtered lists
   const filteredEvents = events.filter((ev) => {
+    // 1. Category Filter
+    if (selectedEventCategory !== 'all') {
+      const catDef = CATEGORY_DEFINITIONS.find(
+        (c) => c.name.toLowerCase() === selectedEventCategory.toLowerCase()
+      );
+      const matchesCategory = catDef
+        ? isCategoryMatch(catDef, ev.category)
+        : (ev.category?.toLowerCase() === selectedEventCategory.toLowerCase());
+      if (!matchesCategory) return false;
+    }
+
+    // 2. Search Text Query
     if (!eventSearch.trim()) return true;
     const q = eventSearch.toLowerCase();
     return (
@@ -836,13 +938,105 @@ const AdminDashboard = () => {
     );
   });
 
+  // Filter reviews calculation
+  const getEventReviewCount = (evId) => {
+    return reviewsList.filter((r) => String(r.eventId?._id || r.eventId) === String(evId)).length;
+  };
+
+  const filteredReviews = reviewsList.filter((r) => {
+    if (selectedReviewEventId !== 'all') {
+      const revEventId = r.eventId?._id || r.eventId;
+      if (String(revEventId) !== String(selectedReviewEventId)) return false;
+    }
+    if (reviewRatingFilter !== 'all') {
+      const targetRating = parseInt(reviewRatingFilter, 10);
+      if (r.rating !== targetRating) return false;
+    }
+    if (reviewSearch && reviewSearch.trim()) {
+      const q = reviewSearch.toLowerCase().trim();
+      const name = (r.userName || '').toLowerCase();
+      const email = (r.userEmail || '').toLowerCase();
+      const comment = (r.comment || '').toLowerCase();
+      const eventTitle = (r.eventId?.title || '').toLowerCase();
+      return name.includes(q) || email.includes(q) || comment.includes(q) || eventTitle.includes(q);
+    }
+    return true;
+  });
+
+  const totalReviewsCount = reviewsList.length;
+  const avgPlatformRating =
+    totalReviewsCount > 0
+      ? (reviewsList.reduce((acc, r) => acc + (r.rating || 0), 0) / totalReviewsCount).toFixed(1)
+      : '0.0';
+  const fiveStarReviewsCount = reviewsList.filter((r) => r.rating === 5).length;
+
   // Session resolving state
   if (authLoading) {
     return <Loading message="Checking administrator privileges..." />;
   }
 
   // =========================================================================
-  // VIEW 1: DIRECT ADMIN LOGIN PORTAL (Displayed when user is not admin)
+  // VIEW 1A: ACCESS DENIED (User is logged in, but role is NOT admin)
+  // =========================================================================
+  if (isAuthenticated && !isAdmin) {
+    return (
+      <div
+        className="min-h-screen relative flex items-center justify-center p-4 bg-cover bg-center bg-no-repeat"
+        style={{
+          backgroundImage: `url('https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&w=2000&q=80')`
+        }}
+      >
+        <div className="absolute inset-0 bg-slate-950/85 backdrop-blur-xs" />
+
+        <div className="relative z-10 w-full max-w-md">
+          <div className="bg-slate-900/90 backdrop-blur-xl rounded-3xl p-6 sm:p-8 border border-rose-500/30 shadow-2xl space-y-6 text-center">
+            <div className="w-16 h-16 rounded-2xl bg-rose-500/20 border border-rose-500/40 text-rose-400 mx-auto flex items-center justify-center shadow-lg">
+              <ShieldAlert className="w-8 h-8" />
+            </div>
+
+            <div>
+              <span className="text-[11px] font-mono font-bold uppercase tracking-wider text-rose-400 block mb-1">
+                HTTP 403 • Forbidden
+              </span>
+              <h2 className="text-xl sm:text-2xl font-black text-white tracking-tight">
+                Administrator Access Required
+              </h2>
+              <p className="text-xs sm:text-sm text-slate-300 mt-2 leading-relaxed">
+                You are currently signed in as <span className="font-semibold text-white">{user?.email}</span> (Role: <span className="font-mono text-amber-300 uppercase font-bold">{user?.role || 'user'}</span>). This system console is strictly restricted to accounts with administrator privileges.
+              </p>
+            </div>
+
+            <div className="space-y-3 pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  logout();
+                  setLoginError('');
+                  setAdminEmail('');
+                  setAdminPassword('');
+                }}
+                className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold text-xs sm:text-sm shadow-md transition active:scale-[0.98] flex items-center justify-center gap-2"
+              >
+                <LogOut className="w-4 h-4" />
+                <span>Sign In with Admin Account</span>
+              </button>
+
+              <Link
+                to="/"
+                className="w-full py-2.5 px-4 rounded-xl bg-white/10 hover:bg-white/15 text-slate-300 hover:text-white font-semibold text-xs sm:text-sm transition flex items-center justify-center gap-1.5"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                <span>Return to Home Page</span>
+              </Link>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // =========================================================================
+  // VIEW 1B: DIRECT ADMIN LOGIN PORTAL (Displayed when user is not signed in)
   // =========================================================================
   if (!isAdmin) {
     return (
@@ -853,15 +1047,23 @@ const AdminDashboard = () => {
         }}
       >
         {/* Dark atmospheric backdrop overlay */}
-        <div className="absolute inset-0 bg-slate-950/75 backdrop-blur-xs" />
+        <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-xs" />
 
         {/* Minimal Admin Login Card */}
         <div className="relative z-10 w-full max-w-sm">
-          <div className="bg-slate-900/85 backdrop-blur-xl rounded-3xl p-6 sm:p-8 border border-white/10 shadow-2xl space-y-4">
+          <div className="bg-slate-900/90 backdrop-blur-xl rounded-3xl p-6 sm:p-8 border border-white/10 shadow-2xl space-y-5">
+            <div className="text-center space-y-1.5">
+              <div className="w-12 h-12 rounded-2xl bg-purple-500/20 text-purple-400 border border-purple-500/30 flex items-center justify-center mx-auto mb-2 shadow-inner">
+                <ShieldCheck className="w-6 h-6" />
+              </div>
+              <h2 className="text-xl font-black text-white tracking-tight">System Console</h2>
+              <p className="text-xs text-slate-400">Authorized Administrator Access Only</p>
+            </div>
+
             {loginError && (
               <div className="p-3.5 rounded-xl bg-rose-500/20 border border-rose-500/30 text-rose-200 text-xs flex items-center gap-2">
                 <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
-                <span className="font-medium">{loginError}</span>
+                <span className="font-medium leading-relaxed">{loginError}</span>
               </div>
             )}
 
@@ -874,7 +1076,7 @@ const AdminDashboard = () => {
                   type="email"
                   value={adminEmail}
                   onChange={(e) => setAdminEmail(e.target.value)}
-                  placeholder="Email"
+                  placeholder="Administrator Email"
                   autoComplete="email"
                   className="w-full pl-10 pr-4 py-3.5 rounded-xl bg-slate-800/90 border border-slate-700 text-white placeholder-slate-400 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition"
                   required
@@ -911,10 +1113,20 @@ const AdminDashboard = () => {
                 {loggingIn ? (
                   <RefreshCw className="w-4 h-4 animate-spin" />
                 ) : (
-                  <span>Login</span>
+                  <span>Authenticate Console</span>
                 )}
               </button>
             </form>
+
+            <div className="pt-2 border-t border-white/10 text-center">
+              <Link
+                to="/"
+                className="text-xs text-slate-400 hover:text-sky-400 transition inline-flex items-center gap-1.5"
+              >
+                <ArrowLeft className="w-3.5 h-3.5" />
+                <span>Return to Public Site</span>
+              </Link>
+            </div>
           </div>
         </div>
       </div>
@@ -922,7 +1134,7 @@ const AdminDashboard = () => {
   }
 
   // =========================================================================
-  // VIEW 2: AUTHENTICATED COMPLETE ADMIN DASHBOARD (4 MANAGEMENT TABS)
+  // VIEW 2: AUTHENTICATED COMPLETE ADMIN DASHBOARD (5 MANAGEMENT TABS)
   // =========================================================================
   return (
     <div className="min-h-screen bg-slate-50 py-8 px-4 sm:px-6 lg:px-8">
@@ -932,7 +1144,7 @@ const AdminDashboard = () => {
           <div className="space-y-2">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-purple-500/20 border border-purple-400/30 text-purple-300 text-xs font-bold uppercase tracking-wider">
               <ShieldCheck className="w-4 h-4 text-purple-400" />
-              <span>Administrator Portal ({user?.email})</span>
+              <span>System Console ({user?.email}) • Role: ADMIN</span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
               Event & Reservation Command Center
@@ -977,7 +1189,10 @@ const AdminDashboard = () => {
           </button>
 
           <button
-            onClick={() => setActiveTab('events')}
+            onClick={() => {
+              setActiveTab('events');
+              setShowAddEventForm(false);
+            }}
             className={`px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm transition flex items-center gap-2 ${
               activeTab === 'events'
                 ? 'bg-purple-600 text-white shadow-md shadow-purple-600/20'
@@ -1011,6 +1226,21 @@ const AdminDashboard = () => {
             <BookmarkCheck className="w-4 h-4" />
             <span>All Bookings ({bookingsList.length})</span>
           </button>
+
+          <button
+            onClick={() => {
+              setSelectedReviewEventId('all');
+              setActiveTab('reviews');
+            }}
+            className={`px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm transition flex items-center gap-2 ${
+              activeTab === 'reviews'
+                ? 'bg-purple-600 text-white shadow-md shadow-purple-600/20'
+                : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+            }`}
+          >
+            <Star className="w-4 h-4 fill-amber-400 text-amber-400" />
+            <span>Customer Reviews ({reviewsList.length})</span>
+          </button>
         </div>
 
         {/* =================================================================== */}
@@ -1019,7 +1249,7 @@ const AdminDashboard = () => {
         {activeTab === 'overview' && (
           <div className="space-y-8">
             {/* Metric Cards */}
-            <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
               <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
                 <div className="flex items-center justify-between">
                   <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Events</span>
@@ -1080,7 +1310,7 @@ const AdminDashboard = () => {
                 </div>
               </div>
 
-              <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs col-span-2 lg:col-span-1">
+              <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
                 <div className="flex items-center justify-between">
                   <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Registered Users</span>
                   <div className="p-2 bg-amber-50 text-amber-600 rounded-xl">
@@ -1092,6 +1322,27 @@ const AdminDashboard = () => {
                     {loadingStats ? '...' : stats?.totalUsers ?? usersList.length}
                   </span>
                   <span className="text-[11px] text-slate-400 block mt-0.5">Accounts in MongoDB</span>
+                </div>
+              </div>
+
+              <div
+                onClick={() => {
+                  setSelectedReviewEventId('all');
+                  setActiveTab('reviews');
+                }}
+                className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs cursor-pointer hover:border-amber-400 hover:shadow-md transition-all group col-span-2 sm:col-span-1"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider group-hover:text-amber-700">Reviews</span>
+                  <div className="p-2 bg-amber-50 text-amber-600 rounded-xl group-hover:bg-amber-100 transition">
+                    <Star className="w-4 h-4 fill-amber-500 text-amber-500" />
+                  </div>
+                </div>
+                <div className="mt-3">
+                  <span className="text-2xl font-black text-slate-900 group-hover:text-amber-700 transition">
+                    {loadingStats ? '...' : (stats?.totalReviews ?? reviewsList.length)}
+                  </span>
+                  <span className="text-[11px] text-slate-400 block mt-0.5">Customer feedback</span>
                 </div>
               </div>
             </div>
@@ -1199,10 +1450,38 @@ const AdminDashboard = () => {
         {/* TAB 2: EVENTS MANAGER & ADD EVENT FORM */}
         {/* =================================================================== */}
         {activeTab === 'events' && (
-          <div className="space-y-8">
-            {/* Create Event Section */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-              <div className="lg:col-span-2 bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-sm space-y-6">
+          <div className="space-y-6">
+            {showAddEventForm ? (
+              /* CREATE EVENT VIEW */
+              <div className="space-y-6 animate-fadeIn">
+                {/* Back to Events Catalog Header Bar */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white rounded-3xl p-5 sm:p-6 border border-slate-200 shadow-sm">
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setShowAddEventForm(false)}
+                      className="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 transition flex items-center gap-2 font-bold text-xs"
+                      title="Back to Events Catalog"
+                    >
+                      <ArrowLeft className="w-4 h-4" />
+                      <span>Back to Events Catalog ({events.length})</span>
+                    </button>
+                    <div className="border-l border-slate-200 pl-3">
+                      <h2 className="text-base font-black text-slate-900">
+                        Create New Event
+                      </h2>
+                      <p className="text-xs text-slate-500">
+                        Publish a new live event with category presets & seat layout
+                      </p>
+                    </div>
+                  </div>
+                  <span className="text-xs font-bold text-purple-700 bg-purple-50 px-3.5 py-1.5 rounded-xl border border-purple-200 self-start sm:self-center">
+                    Active Catalog: {events.length} Events
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                  <div className="lg:col-span-2 bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-sm space-y-6">
                 <div className="border-b border-slate-100 pb-4">
                   <h2 className="text-lg sm:text-xl font-bold text-slate-900 flex items-center gap-2">
                     <Sparkles className="w-5 h-5 text-purple-600" />
@@ -1610,23 +1889,32 @@ const AdminDashboard = () => {
                     ></textarea>
                   </div>
 
-                  <button
-                    type="submit"
-                    disabled={submittingEvent}
-                    className="w-full py-3.5 px-6 rounded-2xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-black text-sm shadow-lg shadow-purple-600/30 transition-all active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-2"
-                  >
-                    {submittingEvent ? (
-                      <>
-                        <RefreshCw className="w-4 h-4 animate-spin" />
-                        <span>Creating Event & Generating Seat Grid...</span>
-                      </>
-                    ) : (
-                      <>
-                        <PlusCircle className="w-4 h-4" />
-                        <span>Publish Event to Catalog</span>
-                      </>
-                    )}
-                  </button>
+                  <div className="flex flex-col sm:flex-row gap-3 pt-2">
+                    <button
+                      type="submit"
+                      disabled={submittingEvent}
+                      className="flex-1 py-3.5 px-6 rounded-2xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-black text-sm shadow-lg shadow-purple-600/30 transition-all active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-2"
+                    >
+                      {submittingEvent ? (
+                        <>
+                          <RefreshCw className="w-4 h-4 animate-spin" />
+                          <span>Creating Event & Generating Seat Grid...</span>
+                        </>
+                      ) : (
+                        <>
+                          <PlusCircle className="w-4 h-4" />
+                          <span>Publish Event to Catalog</span>
+                        </>
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowAddEventForm(false)}
+                      className="py-3.5 px-6 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-sm transition"
+                    >
+                      Cancel & Return
+                    </button>
+                  </div>
                 </form>
               </div>
 
@@ -1686,159 +1974,419 @@ const AdminDashboard = () => {
                 </div>
               </div>
             </div>
-
-            {/* Catalog Events Table */}
-            <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-sm space-y-6">
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-100 pb-4">
-                <div>
-                  <h2 className="text-lg font-bold text-slate-900">
-                    Events Catalog ({events.length})
-                  </h2>
-                  <p className="text-xs text-slate-500">
-                    Live events listing in MongoDB database.
-                  </p>
-                </div>
-
-                <div className="relative w-full sm:w-72">
-                  <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                  <input
-                    type="text"
-                    value={eventSearch}
-                    onChange={(e) => setEventSearch(e.target.value)}
-                    placeholder="Filter events..."
-                    className="w-full pl-9 pr-8 py-2 rounded-xl border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-600"
-                  />
-                  {eventSearch && (
+          </div>
+        ) : (
+              /* EVENTS CATALOG TABLE VIEW */
+              <div className="space-y-6 animate-fadeIn">
+                {/* Event Form Success notification when newly added */}
+                {eventFormSuccess && (
+                  <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs sm:text-sm flex items-center justify-between gap-3 shadow-xs">
+                    <div className="flex items-center gap-2.5">
+                      <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+                      <span className="font-bold">{eventFormSuccess}</span>
+                    </div>
                     <button
-                      onClick={() => setEventSearch('')}
-                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                      type="button"
+                      onClick={() => setEventFormSuccess('')}
+                      className="text-emerald-700 hover:text-emerald-900 text-xs font-bold p-1"
                     >
-                      <X className="w-3.5 h-3.5" />
+                      ✕
                     </button>
+                  </div>
+                )}
+
+                {/* Catalog Events Table Container */}
+                <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-sm space-y-6">
+                  {/* Top Bar: Title, Search, Category Selector, Add Event Button */}
+                  <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 border-b border-slate-100 pb-5">
+                    <div>
+                      <div className="flex items-center gap-2.5">
+                        <div className="p-2.5 bg-purple-50 text-purple-600 rounded-2xl shadow-xs">
+                          <Calendar className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <h2 className="text-xl sm:text-2xl font-black text-slate-900">
+                            Events Manager ({events.length})
+                          </h2>
+                          <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
+                            Manage, edit, filter, and track all live events in MongoDB.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2.5">
+                      {/* Search Bar */}
+                      <div className="relative w-full sm:w-60">
+                        <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                        <input
+                          type="text"
+                          value={eventSearch}
+                          onChange={(e) => setEventSearch(e.target.value)}
+                          placeholder="Search title, venue..."
+                          className="w-full pl-9 pr-8 py-2.5 rounded-xl border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-600"
+                        />
+                        {eventSearch && (
+                          <button
+                            onClick={() => setEventSearch('')}
+                            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Category Quick Select Dropdown */}
+                      <div className="relative">
+                        <select
+                          value={selectedEventCategory}
+                          onChange={(e) => setSelectedEventCategory(e.target.value)}
+                          className="px-3 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-700 bg-white hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-600 cursor-pointer shadow-xs"
+                          title="Filter by category"
+                        >
+                          <option value="all">All Categories ({events.length})</option>
+                          {CATEGORY_DEFINITIONS.map((c) => (
+                            <option key={c.name} value={c.name}>
+                              {c.name} ({getCategoryEventCount(c.name)})
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {/* ADD EVENT BUTTON */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowAddEventForm(true);
+                          setEventFormSuccess('');
+                          setEventFormError('');
+                        }}
+                        className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold text-xs sm:text-sm shadow-md shadow-purple-600/25 transition-all flex items-center gap-2 active:scale-98"
+                      >
+                        <PlusCircle className="w-4 h-4" />
+                        <span>+ Add Event</span>
+                      </button>
+
+                      {/* Reload Button */}
+                      <button
+                        type="button"
+                        onClick={() => loadDashboardData()}
+                        title="Reload events from database"
+                        className="p-2.5 rounded-xl text-slate-600 bg-slate-100 hover:bg-slate-200 transition"
+                      >
+                        <RefreshCw className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Category Filter Pills & Live Event Counts Bar */}
+                  <div className="space-y-3 bg-slate-50/70 p-4 sm:p-5 rounded-2xl border border-slate-200/80">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                      <span className="text-xs font-bold text-slate-600 uppercase tracking-wider flex items-center gap-1.5">
+                        <Tag className="w-3.5 h-3.5 text-purple-600" />
+                        <span>Filter by Category & Live Event Counts</span>
+                      </span>
+
+                      {selectedEventCategory !== 'all' && (
+                        <button
+                          type="button"
+                          onClick={() => setSelectedEventCategory('all')}
+                          className="text-xs font-bold text-purple-600 hover:text-purple-800 flex items-center gap-1 self-start sm:self-auto"
+                        >
+                          <X className="w-3 h-3" />
+                          <span>Show All Categories ({events.length})</span>
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Category Pills List */}
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedEventCategory('all')}
+                        className={`px-3 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+                          selectedEventCategory === 'all'
+                            ? 'bg-purple-600 text-white shadow-md shadow-purple-600/20'
+                            : 'bg-white hover:bg-slate-100 text-slate-700 border border-slate-200'
+                        }`}
+                      >
+                        <span>All Events</span>
+                        <span
+                          className={`px-2 py-0.5 rounded-full text-[11px] font-black ${
+                            selectedEventCategory === 'all'
+                              ? 'bg-purple-800/60 text-white'
+                              : 'bg-slate-100 text-slate-700'
+                          }`}
+                        >
+                          {events.length}
+                        </span>
+                      </button>
+
+                      {CATEGORY_DEFINITIONS.map((cat) => {
+                        const count = getCategoryEventCount(cat.name);
+                        const isSelected = selectedEventCategory.toLowerCase() === cat.name.toLowerCase();
+                        return (
+                          <button
+                            key={cat.name}
+                            type="button"
+                            onClick={() => setSelectedEventCategory(cat.name)}
+                            className={`px-3 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+                              isSelected
+                                ? 'bg-purple-600 text-white shadow-md shadow-purple-600/20'
+                                : 'bg-white hover:bg-slate-100 text-slate-700 border border-slate-200'
+                            }`}
+                          >
+                            <span>{cat.name}</span>
+                            <span
+                              className={`px-2 py-0.5 rounded-full text-[11px] font-black ${
+                                isSelected
+                                  ? 'bg-purple-800/60 text-white'
+                                  : count > 0
+                                  ? 'bg-purple-50 text-purple-700 border border-purple-200'
+                                  : 'bg-slate-100 text-slate-400'
+                              }`}
+                            >
+                              {count}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Active Selected Category Highlight Banner */}
+                  {selectedEventCategory !== 'all' && (
+                    <div className="bg-purple-50/90 border border-purple-200 text-purple-950 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-purple-600 text-white flex items-center justify-center font-bold shrink-0 shadow-sm">
+                          <Tag className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <h4 className="text-sm font-black text-purple-950">
+                              Category: <span className="underline decoration-purple-400">{selectedEventCategory}</span>
+                            </h4>
+                            <span className="px-2.5 py-0.5 rounded-full text-xs font-black bg-purple-200 text-purple-900 border border-purple-300">
+                              {getCategoryEventCount(selectedEventCategory)} Event{getCategoryEventCount(selectedEventCategory) === 1 ? '' : 's'}
+                            </span>
+                          </div>
+                          <p className="text-xs text-purple-800 mt-0.5">
+                            Displaying <strong>{filteredEvents.length}</strong> event{filteredEvents.length === 1 ? '' : 's'} in {selectedEventCategory} (Total catalog: {events.length} events).
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setFormData((prev) => ({
+                              ...prev,
+                              category: selectedEventCategory,
+                              imageUrl: CATEGORY_DEFINITIONS.find((c) => c.name.toLowerCase() === selectedEventCategory.toLowerCase())?.defaultImage || prev.imageUrl
+                            }));
+                            setShowAddEventForm(true);
+                          }}
+                          className="px-3.5 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs shadow-xs transition flex items-center gap-1.5"
+                        >
+                          <PlusCircle className="w-3.5 h-3.5" />
+                          <span>+ Add {selectedEventCategory} Event</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedEventCategory('all')}
+                          className="px-3 py-2 rounded-xl bg-white hover:bg-slate-100 text-slate-700 font-bold text-xs border border-purple-200 transition flex items-center gap-1"
+                        >
+                          <X className="w-3.5 h-3.5 text-slate-500" />
+                          <span>Clear</span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Table Content */}
+                  {loadingEvents ? (
+                    <Loading message="Fetching events from database..." />
+                  ) : filteredEvents.length === 0 ? (
+                    <div className="py-12 text-center text-slate-500 text-sm space-y-3">
+                      <div className="w-12 h-12 bg-slate-100 text-slate-400 rounded-2xl mx-auto flex items-center justify-center">
+                        <Calendar className="w-6 h-6" />
+                      </div>
+                      <div>
+                        <h3 className="font-bold text-slate-800 text-base">No Events Found</h3>
+                        <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
+                          {selectedEventCategory !== 'all'
+                            ? `There are currently 0 events in the "${selectedEventCategory}" category.`
+                            : 'No events found matching your filter criteria.'}
+                        </p>
+                      </div>
+                      <div className="flex items-center justify-center gap-2 pt-1">
+                        {selectedEventCategory !== 'all' && (
+                          <button
+                            type="button"
+                            onClick={() => setSelectedEventCategory('all')}
+                            className="px-4 py-2 rounded-xl text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 transition"
+                          >
+                            View All Events ({events.length})
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (selectedEventCategory !== 'all') {
+                              setFormData((prev) => ({
+                                ...prev,
+                                category: selectedEventCategory,
+                                imageUrl: CATEGORY_DEFINITIONS.find((c) => c.name.toLowerCase() === selectedEventCategory.toLowerCase())?.defaultImage || prev.imageUrl
+                              }));
+                            }
+                            setShowAddEventForm(true);
+                          }}
+                          className="px-4 py-2 rounded-xl text-xs font-bold text-white bg-purple-600 hover:bg-purple-500 transition flex items-center gap-1.5"
+                        >
+                          <PlusCircle className="w-3.5 h-3.5" />
+                          <span>+ Add Event</span>
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-xs border-collapse">
+                        <thead>
+                          <tr className="border-b border-slate-200 bg-slate-50/50 text-slate-500 font-bold uppercase tracking-wider">
+                            <th className="py-3 px-4">Event</th>
+                            <th className="py-3 px-4">Category</th>
+                            <th className="py-3 px-4">Status</th>
+                            <th className="py-3 px-4">Venue</th>
+                            <th className="py-3 px-4">Price</th>
+                            <th className="py-3 px-4">Available Seats</th>
+                            <th className="py-3 px-4">Rating & Reviews</th>
+                            <th className="py-3 px-4 text-right">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {filteredEvents.map((ev) => (
+                            <tr key={ev._id} className="hover:bg-slate-50/80 transition-colors">
+                              <td className="py-3 px-4">
+                                <div className="flex items-center gap-3">
+                                  <img
+                                    src={ev.imageUrl || CATEGORY_DEFINITIONS[0].defaultImage}
+                                    alt={ev.title}
+                                    className="w-10 h-10 rounded-lg object-cover border border-slate-200 shrink-0"
+                                  />
+                                  <div>
+                                    <span className="font-bold text-slate-900 block text-sm line-clamp-1">
+                                      {ev.title}
+                                    </span>
+                                    <span className="text-[11px] text-slate-400">
+                                      {formatDate(ev.startTime)}
+                                    </span>
+                                  </div>
+                                </div>
+                              </td>
+
+                              <td className="py-3 px-4">
+                                <span className="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-purple-50 text-purple-700 border border-purple-200">
+                                  {ev.category || 'Other'}
+                                </span>
+                              </td>
+
+                              <td className="py-3 px-4">
+                                <div className="relative inline-flex items-center">
+                                  {(() => {
+                                    const isTimeOver = ev.endTime ? new Date() >= new Date(ev.endTime) : false;
+                                    const currentEvStatus = isTimeOver || ev.status === 'Completed' ? 'Completed' : (ev.status || 'Pending');
+                                    return (
+                                      <select
+                                        value={currentEvStatus}
+                                        onChange={(e) => handleStatusChange(ev._id, e.target.value)}
+                                        disabled={updatingStatusId === ev._id}
+                                        title={isTimeOver ? 'Event timing is over (Automatically marked as Completed)' : 'Change event status'}
+                                        className={`text-xs font-bold px-2.5 py-1.5 rounded-xl border transition-all cursor-pointer shadow-xs focus:outline-none focus:ring-2 focus:ring-purple-500/20 disabled:opacity-50 ${
+                                          currentEvStatus === 'Completed'
+                                            ? 'bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100'
+                                            : currentEvStatus === 'In Progress'
+                                            ? 'bg-blue-50 text-blue-800 border-blue-300 hover:bg-blue-100'
+                                            : 'bg-amber-50 text-amber-800 border-amber-300 hover:bg-amber-100'
+                                        }`}
+                                      >
+                                        <option value="Pending" className="bg-white text-slate-800 font-medium">⏳ Pending</option>
+                                        <option value="In Progress" className="bg-white text-slate-800 font-medium">⚡ In Progress</option>
+                                        <option value="Completed" className="bg-white text-slate-800 font-medium">
+                                          {isTimeOver ? '✓ Completed (Time Ended)' : '✓ Completed'}
+                                        </option>
+                                      </select>
+                                    );
+                                  })()}
+                                  {updatingStatusId === ev._id && (
+                                    <span className="ml-1.5 w-3 h-3 border-2 border-purple-600 border-t-transparent rounded-full animate-spin shrink-0" />
+                                  )}
+                                </div>
+                              </td>
+
+                              <td className="py-3 px-4 text-slate-600 max-w-[150px] truncate">
+                                {ev.venue}
+                              </td>
+
+                              <td className="py-3 px-4 font-bold text-slate-900">
+                                {formatCurrency(ev.pricePerSeat)}
+                              </td>
+
+                              <td className="py-3 px-4">
+                                <span className="text-slate-700 font-semibold">
+                                  {ev.availableSeats ?? ev.totalSeats ?? 40} / {ev.totalSeats || 40}
+                                </span>
+                              </td>
+
+                              <td className="py-3 px-4">
+                                <button
+                                  type="button"
+                                  onClick={() => handleViewEventReviews(ev._id)}
+                                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200 hover:bg-amber-100 hover:border-amber-300 transition-all group"
+                                  title={`Click to view reviews for "${ev.title}"`}
+                                >
+                                  <Star className="w-3.5 h-3.5 fill-amber-500 text-amber-500 shrink-0" />
+                                  <span>{ev.averageRating > 0 ? ev.averageRating.toFixed(1) : '0.0'}</span>
+                                  <span className="text-[10px] text-amber-700 font-semibold group-hover:underline">
+                                    ({ev.totalReviews || 0} reviews)
+                                  </span>
+                                </button>
+                              </td>
+
+                              <td className="py-3 px-4 text-right">
+                                <div className="flex items-center justify-end gap-1.5">
+                                  <button
+                                    onClick={() => handleViewEventReviews(ev._id)}
+                                    title="View customer reviews for this event"
+                                    className="p-1.5 rounded-lg text-slate-500 hover:text-amber-600 hover:bg-amber-50 transition"
+                                  >
+                                    <MessageSquare className="w-4 h-4" />
+                                  </button>
+                                  <button
+                                    onClick={() => handleOpenEditModal(ev)}
+                                    title="Edit event details"
+                                    className="p-1.5 rounded-lg text-slate-500 hover:text-purple-600 hover:bg-purple-50 transition"
+                                  >
+                                    <Edit3 className="w-4 h-4" />
+                                  </button>
+                                  <button
+                                    onClick={() => setEventToDelete(ev)}
+                                    title="Delete event"
+                                    className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
                   )}
                 </div>
               </div>
-
-              {loadingEvents ? (
-                <Loading message="Fetching events from database..." />
-              ) : filteredEvents.length === 0 ? (
-                <div className="py-12 text-center text-slate-500 text-sm">
-                  No events found matching your filter.
-                </div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs border-collapse">
-                    <thead>
-                      <tr className="border-b border-slate-200 bg-slate-50/50 text-slate-500 font-bold uppercase tracking-wider">
-                        <th className="py-3 px-4">Event</th>
-                        <th className="py-3 px-4">Category</th>
-                        <th className="py-3 px-4">Status</th>
-                        <th className="py-3 px-4">Venue</th>
-                        <th className="py-3 px-4">Price</th>
-                        <th className="py-3 px-4">Available Seats</th>
-                        <th className="py-3 px-4 text-right">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {filteredEvents.map((ev) => (
-                        <tr key={ev._id} className="hover:bg-slate-50/80 transition-colors">
-                            <td className="py-3 px-4">
-                              <div className="flex items-center gap-3">
-                                <img
-                                  src={ev.imageUrl || CATEGORY_DEFINITIONS[0].defaultImage}
-                                  alt={ev.title}
-                                  className="w-10 h-10 rounded-lg object-cover border border-slate-200 shrink-0"
-                                />
-                                <div>
-                                  <span className="font-bold text-slate-900 block text-sm line-clamp-1">
-                                    {ev.title}
-                                  </span>
-                                  <span className="text-[11px] text-slate-400">
-                                    {formatDate(ev.startTime)}
-                                  </span>
-                                </div>
-                              </div>
-                            </td>
-
-                            <td className="py-3 px-4">
-                              <span className="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider bg-purple-50 text-purple-700 border border-purple-200">
-                                {ev.category || 'Other'}
-                              </span>
-                            </td>
-
-                            <td className="py-3 px-4">
-                              <div className="relative inline-flex items-center">
-                                {(() => {
-                                  const isTimeOver = ev.endTime ? new Date() >= new Date(ev.endTime) : false;
-                                  const currentEvStatus = isTimeOver || ev.status === 'Completed' ? 'Completed' : (ev.status || 'Pending');
-                                  return (
-                                    <select
-                                      value={currentEvStatus}
-                                      onChange={(e) => handleStatusChange(ev._id, e.target.value)}
-                                      disabled={updatingStatusId === ev._id}
-                                      title={isTimeOver ? 'Event timing is over (Automatically marked as Completed)' : 'Change event status'}
-                                      className={`text-xs font-bold px-2.5 py-1.5 rounded-xl border transition-all cursor-pointer shadow-xs focus:outline-none focus:ring-2 focus:ring-purple-500/20 disabled:opacity-50 ${
-                                        currentEvStatus === 'Completed'
-                                          ? 'bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100'
-                                          : currentEvStatus === 'In Progress'
-                                          ? 'bg-blue-50 text-blue-800 border-blue-300 hover:bg-blue-100'
-                                          : 'bg-amber-50 text-amber-800 border-amber-300 hover:bg-amber-100'
-                                      }`}
-                                    >
-                                      <option value="Pending" className="bg-white text-slate-800 font-medium">⏳ Pending</option>
-                                      <option value="In Progress" className="bg-white text-slate-800 font-medium">⚡ In Progress</option>
-                                      <option value="Completed" className="bg-white text-slate-800 font-medium">
-                                        {isTimeOver ? '✓ Completed (Time Ended)' : '✓ Completed'}
-                                      </option>
-                                    </select>
-                                  );
-                                })()}
-                                {updatingStatusId === ev._id && (
-                                  <span className="ml-1.5 w-3 h-3 border-2 border-purple-600 border-t-transparent rounded-full animate-spin shrink-0" />
-                                )}
-                              </div>
-                            </td>
-
-                            <td className="py-3 px-4 text-slate-600 max-w-[150px] truncate">
-                              {ev.venue}
-                            </td>
-
-                            <td className="py-3 px-4 font-bold text-slate-900">
-                              {formatCurrency(ev.pricePerSeat)}
-                            </td>
-
-                            <td className="py-3 px-4">
-                              <span className="text-slate-700 font-semibold">
-                                {ev.availableSeats ?? ev.totalSeats ?? 40} / {ev.totalSeats || 40}
-                              </span>
-                            </td>
-
-                            <td className="py-3 px-4 text-right">
-                              <div className="flex items-center justify-end gap-1.5">
-                                <button
-                                  onClick={() => handleOpenEditModal(ev)}
-                                  title="Edit event details"
-                                  className="p-1.5 rounded-lg text-slate-500 hover:text-purple-600 hover:bg-purple-50 transition"
-                                >
-                                  <Edit3 className="w-4 h-4" />
-                                </button>
-                                <button
-                                  onClick={() => setEventToDelete(ev)}
-                                  title="Delete event"
-                                  className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        ))
-                      }
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
+            )}
           </div>
         )}
 
@@ -1977,6 +2525,7 @@ const AdminDashboard = () => {
           </div>
         )}
 
+    
         {/* =================================================================== */}
         {/* TAB 4: ALL BOOKINGS MANAGER */}
         {/* =================================================================== */}
@@ -2108,6 +2657,283 @@ const AdminDashboard = () => {
                     ))}
                   </tbody>
                 </table>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* =================================================================== */}
+        {/* TAB 5: CUSTOMER REVIEWS & FEEDBACK MANAGER */}
+        {/* =================================================================== */}
+        {activeTab === 'reviews' && (
+          <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-sm space-y-6">
+            {/* Header & Filter Controls */}
+            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 border-b border-slate-100 pb-5">
+              <div>
+                <div className="flex items-center gap-2">
+                  <div className="p-2 bg-amber-50 text-amber-600 rounded-xl border border-amber-200">
+                    <Star className="w-5 h-5 fill-amber-500 text-amber-500" />
+                  </div>
+                  <h2 className="text-lg font-bold text-slate-900">
+                    Event Reviews & Feedback ({filteredReviews.length})
+                  </h2>
+                </div>
+                <p className="text-xs text-slate-500 mt-1">
+                  Manage customer feedback and ratings filtered by event, stars, or reviewer.
+                </p>
+              </div>
+
+              {/* Filters Bar */}
+              <div className="flex flex-wrap items-center gap-2.5">
+                {/* Event Selector */}
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs font-semibold text-slate-500 hidden sm:inline">Event:</span>
+                  <select
+                    value={selectedReviewEventId}
+                    onChange={(e) => setSelectedReviewEventId(e.target.value)}
+                    className="px-3 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-purple-500/20 max-w-xs truncate"
+                  >
+                    <option value="all">🎪 All Events ({reviewsList.length} reviews)</option>
+                    {events.map((ev) => {
+                      const count = getEventReviewCount(ev._id);
+                      return (
+                        <option key={ev._id} value={ev._id}>
+                          {ev.title} ({count} review{count === 1 ? '' : 's'})
+                        </option>
+                      );
+                    })}
+                  </select>
+                </div>
+
+                {/* Rating Filter */}
+                <select
+                  value={reviewRatingFilter}
+                  onChange={(e) => setReviewRatingFilter(e.target.value)}
+                  className="px-3 py-2 rounded-xl border border-slate-200 text-xs font-semibold text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-purple-500/20"
+                >
+                  <option value="all">⭐ All Ratings</option>
+                  <option value="5">⭐⭐⭐⭐⭐ 5 Stars</option>
+                  <option value="4">⭐⭐⭐⭐ 4 Stars</option>
+                  <option value="3">⭐⭐⭐ 3 Stars</option>
+                  <option value="2">⭐⭐ 2 Stars</option>
+                  <option value="1">⭐ 1 Star</option>
+                </select>
+
+                {/* Search */}
+                <div className="relative w-full sm:w-56">
+                  <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    value={reviewSearch}
+                    onChange={(e) => setReviewSearch(e.target.value)}
+                    placeholder="Search reviewer or text..."
+                    className="w-full pl-9 pr-3 py-2 rounded-xl border border-slate-200 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-600"
+                  />
+                </div>
+
+                {(selectedReviewEventId !== 'all' || reviewRatingFilter !== 'all' || reviewSearch) && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedReviewEventId('all');
+                      setReviewRatingFilter('all');
+                      setReviewSearch('');
+                    }}
+                    className="p-2 rounded-xl text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 transition"
+                    title="Reset all filters"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Selected Event Context Banner (when filtering by a specific event) */}
+            {selectedReviewEventId !== 'all' && (
+              <div className="p-4 rounded-2xl bg-gradient-to-r from-amber-50 to-purple-50 border border-amber-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-fadeIn">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-amber-500 text-white rounded-xl shadow-xs">
+                    <Star className="w-4 h-4 fill-white" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-xs font-bold text-amber-900">Filtered by Event:</span>
+                      <span className="text-xs font-black text-slate-900">
+                        {events.find((e) => e._id === selectedReviewEventId)?.title || 'Selected Event'}
+                      </span>
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-white text-purple-700 border border-purple-200">
+                        {events.find((e) => e._id === selectedReviewEventId)?.category || 'Other'}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-600 mt-0.5">
+                      Showing {filteredReviews.length} customer review{filteredReviews.length === 1 ? '' : 's'} for this event.
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setSelectedReviewEventId('all')}
+                  className="self-start sm:self-center px-3 py-1.5 rounded-xl text-xs font-bold text-slate-700 bg-white hover:bg-slate-100 border border-slate-200 shadow-xs transition"
+                >
+                  View All Events ({reviewsList.length})
+                </button>
+              </div>
+            )}
+
+            {/* Quick Metrics Bar */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-50 p-4 rounded-2xl border border-slate-200">
+              <div className="text-center p-2">
+                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">Total Reviews</span>
+                <span className="text-xl font-black text-slate-900 mt-0.5 block">{reviewsList.length}</span>
+              </div>
+              <div className="text-center p-2 border-l border-slate-200">
+                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">Average Rating</span>
+                <span className="text-xl font-black text-amber-600 mt-0.5 flex items-center justify-center gap-1">
+                  <Star className="w-4 h-4 fill-amber-500 text-amber-500" />
+                  <span>{avgPlatformRating} / 5</span>
+                </span>
+              </div>
+              <div className="text-center p-2 border-l border-slate-200">
+                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">5-Star Reviews</span>
+                <span className="text-xl font-black text-emerald-600 mt-0.5 block">{fiveStarReviewsCount}</span>
+              </div>
+              <div className="text-center p-2 border-l border-slate-200">
+                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">Events with Reviews</span>
+                <span className="text-xl font-black text-purple-600 mt-0.5 block">
+                  {new Set(reviewsList.map((r) => String(r.eventId?._id || r.eventId))).size}
+                </span>
+              </div>
+            </div>
+
+            {/* Reviews List / Content */}
+            {loadingReviews ? (
+              <Loading message="Fetching customer reviews..." />
+            ) : filteredReviews.length === 0 ? (
+              <div className="py-14 text-center text-slate-500 text-sm space-y-3 bg-slate-50 rounded-2xl border border-slate-200">
+                <div className="w-12 h-12 bg-white text-slate-400 rounded-2xl mx-auto flex items-center justify-center shadow-xs border border-slate-200">
+                  <Star className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-800 text-base">No Reviews Found</h3>
+                  <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
+                    {selectedReviewEventId !== 'all'
+                      ? 'This event currently has no reviews submitted by customers.'
+                      : 'No customer reviews match your search or filter criteria.'}
+                  </p>
+                </div>
+                {(selectedReviewEventId !== 'all' || reviewRatingFilter !== 'all' || reviewSearch) && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedReviewEventId('all');
+                      setReviewRatingFilter('all');
+                      setReviewSearch('');
+                    }}
+                    className="px-4 py-2 rounded-xl text-xs font-bold text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-200 transition"
+                  >
+                    Clear Filters
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {filteredReviews.map((rev) => {
+                  const ev = rev.eventId || {};
+                  const eventTitle = ev.title || 'Event Details';
+                  const eventCategory = ev.category || 'General';
+                  const dateStr = rev.createdAt
+                    ? new Date(rev.createdAt).toLocaleDateString('en-US', {
+                        month: 'short',
+                        day: 'numeric',
+                        year: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                      })
+                    : 'Recent';
+
+                  const initial = (rev.userName || 'U')[0].toUpperCase();
+
+                  return (
+                    <div
+                      key={rev._id}
+                      className="p-5 rounded-2xl bg-white border border-slate-200 shadow-xs hover:border-slate-300 transition-all space-y-3.5 flex flex-col justify-between"
+                    >
+                      <div className="space-y-3">
+                        {/* Event Associated & Delete Button */}
+                        <div className="flex items-start justify-between gap-3 border-b border-slate-100 pb-2.5">
+                          <div>
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                              Event
+                            </span>
+                            <span className="text-xs font-bold text-purple-800 line-clamp-1">
+                              {eventTitle}
+                            </span>
+                            <span className="inline-block mt-0.5 text-[9px] font-bold px-2 py-0.2 rounded-full bg-slate-100 text-slate-600 border border-slate-200">
+                              {eventCategory}
+                            </span>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => setReviewToDelete(rev)}
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition shrink-0"
+                            title="Delete this review"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+
+                        {/* Reviewer & Star Rating */}
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2.5">
+                            <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-purple-600 to-indigo-600 text-white font-bold text-xs flex items-center justify-center shrink-0">
+                              {initial}
+                            </div>
+                            <div>
+                              <span className="font-bold text-slate-900 text-xs block">
+                                {rev.userName}
+                              </span>
+                              <span className="text-[10px] text-slate-400 block truncate max-w-[160px]">
+                                {rev.userEmail || 'Registered Customer'}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Star Rating Badge */}
+                          <div className="flex items-center gap-1 bg-amber-50 border border-amber-200 px-2 py-1 rounded-xl shrink-0">
+                            <div className="flex items-center">
+                              {[1, 2, 3, 4, 5].map((starIdx) => (
+                                <Star
+                                  key={starIdx}
+                                  className={`w-3 h-3 ${
+                                    starIdx <= rev.rating
+                                      ? 'fill-amber-400 text-amber-400'
+                                      : 'fill-slate-200 text-slate-200'
+                                  }`}
+                                />
+                              ))}
+                            </div>
+                            <span className="text-[11px] font-black text-amber-800 ml-1">
+                              {rev.rating}.0
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Review Comment Text */}
+                        <p className="text-xs text-slate-800 leading-relaxed bg-slate-50/80 p-3 rounded-xl border border-slate-100">
+                          {rev.comment}
+                        </p>
+                      </div>
+
+                      {/* Footer: Date */}
+                      <div className="text-[10px] font-medium text-slate-400 pt-1 border-t border-slate-50 flex items-center justify-between">
+                        <span>Submitted: {dateStr}</span>
+                        <span className="text-emerald-700 font-semibold">Verified Review</span>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>
@@ -2462,6 +3288,17 @@ const AdminDashboard = () => {
         isDestructive={true}
         onConfirm={handleConfirmCancelBooking}
         onCancel={() => setBookingToCancel(null)}
+      />
+
+      <ConfirmDialog
+        isOpen={Boolean(reviewToDelete)}
+        title="Delete Customer Review"
+        message={`Are you sure you want to permanently delete the review from "${reviewToDelete?.userName}" (${reviewToDelete?.rating} Stars)? Associated event rating statistics will be automatically updated.`}
+        confirmText={actionProcessing ? 'Deleting...' : 'Delete Review'}
+        cancelText="Cancel"
+        isDestructive={true}
+        onConfirm={handleConfirmDeleteReview}
+        onCancel={() => setReviewToDelete(null)}
       />
     </div>
   );

@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const eventController = require('../controllers/eventController');
 const holdController = require('../controllers/holdController');
+const reviewController = require('../controllers/reviewController');
 const { validateEventId, validateCreateHold } = require('../validators/holdValidators');
 const validateRequest = require('../middlewares/validateRequest');
 const { requireAuth, requireAdmin } = require('../middlewares/authMiddleware');
@@ -17,6 +18,11 @@ router.put('/:eventId/status', requireAuth, requireAdmin, validateEventId, valid
 router.delete('/:eventId', requireAuth, requireAdmin, validateEventId, validateRequest, eventController.deleteEvent);
 
 router.get('/:eventId/seats', validateEventId, validateRequest, eventController.getEventSeats);
+
+// Reviews endpoints for an event
+router.get('/:eventId/reviews', reviewController.getEventReviews);
+router.post('/:eventId/reviews', requireAuth, reviewController.createOrUpdateReview);
+router.delete('/:eventId/reviews/:reviewId', requireAuth, reviewController.deleteReview);
 
 // Protected hold endpoints scoped under an event (using MongoDB ObjectId)
 router.get('/:eventId/my-hold', requireAuth, validateEventId, validateRequest, holdController.getMyActiveHold);

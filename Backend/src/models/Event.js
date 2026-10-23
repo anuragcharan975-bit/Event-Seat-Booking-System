@@ -72,6 +72,17 @@ const eventSchema = new mongoose.Schema(
       },
       default: 'Pending',
       trim: true
+    },
+    averageRating: {
+      type: Number,
+      default: 0,
+      min: 0,
+      max: 5
+    },
+    totalReviews: {
+      type: Number,
+      default: 0,
+      min: 0
     }
   },
   {

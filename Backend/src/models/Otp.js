@@ -15,8 +15,11 @@ const otpSchema = new mongoose.Schema(
       index: true
     },
     hashedOtp: {
+      type: String
+    },
+    otp: {
       type: String,
-      required: [true, 'Hashed OTP is required']
+      trim: true
     },
     purpose: {
       type: String,
@@ -40,6 +43,18 @@ const otpSchema = new mongoose.Schema(
     used: {
       type: Boolean,
       default: false
+    },
+    isVerified: {
+      type: Boolean,
+      default: false
+    },
+    resetToken: {
+      type: String,
+      index: true
+    },
+    lastRequestedAt: {
+      type: Date,
+      default: Date.now
     }
   },
   {

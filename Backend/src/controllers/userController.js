@@ -82,8 +82,7 @@ const sendPasswordOtp = asyncHandler(async (req, res) => {
     success: true,
     message: `A 6-digit verification code has been sent to ${user.email}. Valid for ${validityMinutes} minutes.`,
     email: user.email,
-    expiresInMinutes: validityMinutes,
-    ...(process.env.NODE_ENV !== 'production' ? { devOtp: otp } : {})
+    expiresInMinutes: validityMinutes
   });
 });
 
@@ -110,10 +109,10 @@ const verifyPasswordOtpAndChange = asyncHandler(async (req, res) => {
     });
   }
 
-  if (newPassword.length > 6) {
+  if (newPassword.length < 4) {
     return res.status(400).json({
       success: false,
-      message: 'Password cannot be more than 6 characters.'
+      message: 'New password must be at least 4 characters long.'
     });
   }
 

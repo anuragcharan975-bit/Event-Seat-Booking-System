@@ -162,7 +162,7 @@ const updateProfile = asyncHandler(async (req, res) => {
 
 /**
  * @route   POST /api/auth/send-otp
- * @desc    Generate and send 4-digit OTP to user email for password reset / change
+ * @desc    Generate and send 6-digit OTP to user email for password reset / change (5-minute expiration)
  * @access  Public
  */
 const sendOtp = asyncHandler(async (req, res) => {
@@ -171,7 +171,7 @@ const sendOtp = asyncHandler(async (req, res) => {
   if (!emailInput || !emailInput.trim()) {
     return res.status(400).json({
       success: false,
-      message: 'Email address is required to receive OTP'
+      message: 'Email address is required to receive verification code'
     });
   }
 
@@ -186,41 +186,77 @@ const sendOtp = asyncHandler(async (req, res) => {
     });
   }
 
-  // Generate exact 4-digit numeric OTP (between 1000 and 9999)
-  const otp = Math.floor(1000 + Math.random() * 9000).toString();
+  // Anti-Spam / Rate-limiting: prevent requesting multiple OTPs within 60 seconds
+  const recentOtp = await Otp.findOne({
+    email: normalizedEmail,
+    createdAt: { $gt: new Date(Date.now() - 60 * 1000) }
+  });
+
+  if (recentOtp) {
+    const secondsRemaining = Math.max(
+      1,
+      Math.ceil((recentOtp.createdAt.getTime() + 60 * 1000 - Date.now()) / 1000)
+    );
+    return res.status(429).json({
+      success: false,
+      message: `Please wait ${secondsRemaining} second(s) before requesting a new verification code.`
+    });
+  }
+
+  // Generate 6-digit numeric OTP (between 100000 and 999999)
+  const otp = Math.floor(100000 + Math.random() * 900000).toString();
 
   // Invalidate any existing unused OTP for this email
   await Otp.deleteMany({ email: normalizedEmail });
 
-  // Expiration set to 10 minutes from now
-  const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+  // Expiration set to 5 minutes from now
+  const validityMinutes = 5;
+  const expiresAt = new Date(Date.now() + validityMinutes * 60 * 1000);
+
+  // Securely hash OTP before database storage
+  const salt = await bcrypt.genSalt(10);
+  const hashedOtp = await bcrypt.hash(otp, salt);
 
   await Otp.create({
+    userId: user._id,
     email: normalizedEmail,
     otp,
+    hashedOtp,
     purpose: req.body.purpose || 'change_password',
-    expiresAt
+    attempts: 0,
+    maxAttempts: 5,
+    expiresAt,
+    used: false,
+    isVerified: false
   });
 
-  // Dispatch email notification
-  await emailService.sendOtpEmail({
+  // Dispatch email notification using existing SMTP configuration
+  const emailResult = await emailService.sendOtpEmail({
     to: normalizedEmail,
     otp,
-    userName: user.name
+    userName: user.name,
+    validityMinutes
   });
+
+  // Handle email delivery errors if real SMTP was configured but failed
+  if (!emailResult.success && emailResult.isSmtpConfigured) {
+    return res.status(502).json({
+      success: false,
+      message: `Failed to deliver verification email: ${emailResult.error || 'SMTP Connection Error'}. Please check SMTP configuration.`
+    });
+  }
 
   return res.status(200).json({
     success: true,
-    message: `A 4-digit verification code has been sent to ${normalizedEmail}`,
+    message: `A 6-digit verification code has been sent to ${normalizedEmail}. Valid for ${validityMinutes} minutes.`,
     email: normalizedEmail,
-    expiresInMinutes: 10,
-    ...(process.env.NODE_ENV !== 'production' ? { devOtp: otp } : {})
+    expiresInMinutes: validityMinutes
   });
 });
 
 /**
  * @route   POST /api/auth/verify-otp
- * @desc    Verify if entered 4-digit OTP is valid
+ * @desc    Verify if entered 6-digit OTP is valid (tracks attempts and prevents brute-force)
  * @access  Public
  */
 const verifyOtp = asyncHandler(async (req, res) => {
@@ -229,16 +265,16 @@ const verifyOtp = asyncHandler(async (req, res) => {
   if (!email || !otp) {
     return res.status(400).json({
       success: false,
-      message: 'Email and 4-digit OTP are required'
+      message: 'Email and verification code are required'
     });
   }
 
   const normalizedEmail = email.toLowerCase().trim();
   const trimmedOtp = otp.toString().trim();
 
+  // Find active, unexpired, unused OTP record
   const record = await Otp.findOne({
     email: normalizedEmail,
-    otp: trimmedOtp,
     used: false,
     expiresAt: { $gt: new Date() }
   });
@@ -246,40 +282,88 @@ const verifyOtp = asyncHandler(async (req, res) => {
   if (!record) {
     return res.status(400).json({
       success: false,
-      message: 'Invalid or expired 4-digit OTP. Please request a new code.'
+      message: 'Invalid or expired verification code. Please request a new code.'
     });
   }
 
+  // Prevent invalid attempts / brute force
+  if (record.attempts >= record.maxAttempts) {
+    await Otp.deleteMany({ email: normalizedEmail });
+    return res.status(429).json({
+      success: false,
+      message: 'Maximum verification attempts exceeded. This code has been invalidated for security. Please request a new code.'
+    });
+  }
+
+  // Verify OTP against stored plain OTP or hashed OTP
+  let isMatch = record.otp === trimmedOtp;
+  if (!isMatch && record.hashedOtp) {
+    isMatch = await bcrypt.compare(trimmedOtp, record.hashedOtp);
+  }
+
+  if (!isMatch) {
+    record.attempts += 1;
+    await record.save();
+    const remainingAttempts = Math.max(0, record.maxAttempts - record.attempts);
+
+    if (remainingAttempts === 0) {
+      await Otp.deleteMany({ email: normalizedEmail });
+      return res.status(400).json({
+        success: false,
+        message: 'Incorrect verification code. Maximum attempts reached. Please request a new code.'
+      });
+    }
+
+    return res.status(400).json({
+      success: false,
+      message: `Incorrect verification code. ${remainingAttempts} attempt(s) remaining.`
+    });
+  }
+
+  // OTP is valid: generate a cryptographically secure reset token
+  const crypto = require('crypto');
+  const resetToken = crypto.randomBytes(32).toString('hex');
+  record.isVerified = true;
+  record.resetToken = resetToken;
+  await record.save();
+
   return res.status(200).json({
     success: true,
-    message: 'OTP verified successfully'
+    message: 'OTP verified successfully. You may now set your new password.',
+    resetToken
   });
 });
 
 /**
  * @route   POST /api/auth/change-password
- * @desc    Verify 4-digit OTP and update password
+ * @desc    Update password after OTP verification (hashes with bcrypt, prevents OTP reuse)
  * @access  Public
  */
 const changePassword = asyncHandler(async (req, res) => {
-  const { email, otp, newPassword } = req.body;
+  const { email, resetToken, otp, newPassword, confirmPassword } = req.body;
 
-  if (!email || !otp || !newPassword) {
+  if (!email || !newPassword) {
     return res.status(400).json({
       success: false,
-      message: 'Email, 4-digit OTP, and new password are required'
+      message: 'Email and new password are required'
     });
   }
 
-  if (newPassword.length > 6) {
+  if (newPassword.length < 4) {
     return res.status(400).json({
       success: false,
-      message: 'New password cannot be more than 6 characters (maximum 6 characters allowed)'
+      message: 'New password must be at least 4 characters long'
+    });
+  }
+
+  if (confirmPassword && newPassword !== confirmPassword) {
+    return res.status(400).json({
+      success: false,
+      message: 'New password and confirm password do not match'
     });
   }
 
   const normalizedEmail = email.toLowerCase().trim();
-  const trimmedOtp = otp.toString().trim();
 
   // Find user
   const user = await User.findOne({ email: normalizedEmail });
@@ -290,30 +374,56 @@ const changePassword = asyncHandler(async (req, res) => {
     });
   }
 
-  // Find matching unexpired OTP
-  const record = await Otp.findOne({
+  // Look up verified OTP record
+  const query = {
     email: normalizedEmail,
-    otp: trimmedOtp,
     used: false,
     expiresAt: { $gt: new Date() }
-  });
+  };
+
+  if (resetToken) {
+    query.resetToken = resetToken;
+  }
+
+  const record = await Otp.findOne(query);
 
   if (!record) {
     return res.status(400).json({
       success: false,
-      message: 'Invalid or expired 4-digit OTP. Please check the code or request a new one.'
+      message: 'Verification session expired or invalid. Please verify your OTP again.'
     });
   }
 
-  // Hash new password
+  // If record was not marked verified yet, check if valid OTP was passed directly
+  if (!record.isVerified) {
+    if (!otp) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please verify the OTP code before updating your password.'
+      });
+    }
+    const cleanOtp = otp.toString().trim();
+    let isMatch = record.otp === cleanOtp;
+    if (!isMatch && record.hashedOtp) {
+      isMatch = await bcrypt.compare(cleanOtp, record.hashedOtp);
+    }
+    if (!isMatch) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid verification code.'
+      });
+    }
+  }
+
+  // Hash new password using bcrypt
   const salt = await bcrypt.genSalt(10);
   const passwordHash = await bcrypt.hash(newPassword, salt);
 
-  // Update password
+  // Update password in MongoDB
   user.passwordHash = passwordHash;
   await user.save();
 
-  // Mark OTP used and purge
+  // Invalidate OTP immediately to prevent reuse
   record.used = true;
   await record.save();
   await Otp.deleteMany({ email: normalizedEmail });

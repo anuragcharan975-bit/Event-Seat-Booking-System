@@ -11,6 +11,7 @@ import Loading from '../components/Loading';
 import ErrorMessage from '../components/ErrorMessage';
 import ConfirmDialog from '../components/ConfirmDialog';
 import BookingModal from '../components/BookingModal';
+import EventReviews from '../components/EventReviews';
 import { formatCurrency } from '../utils/formatCurrency';
 import { formatDate, getEventTimingDisplay, isEventOverTime } from '../utils/formatDate';
 import {
@@ -28,7 +29,8 @@ import {
   ArrowLeft,
   Info,
   Users,
-  Check
+  Check,
+  Star
 } from 'lucide-react';
 
 const EventDetails = () => {
@@ -43,6 +45,8 @@ const EventDetails = () => {
   const [seats, setSeats] = useState([]);
   const [selectedSeatIds, setSelectedSeatIds] = useState([]);
   const [activeHold, setActiveHold] = useState(null);
+  const [userBookedCount, setUserBookedCount] = useState(0);
+  const [seatError, setSeatError] = useState('');
 
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
@@ -97,8 +101,15 @@ const EventDetails = () => {
     if (!isAuthenticated || !eventIdToRestore) return;
     try {
       const res = await holdApi.getMyHold(eventIdToRestore);
-      if (res.success && res.data) {
-        setActiveHold(res.data);
+      if (res.success) {
+        if (res.data) {
+          setActiveHold(res.data);
+        } else {
+          setActiveHold(null);
+        }
+        if (typeof res.userBookedSeatsCount === 'number') {
+          setUserBookedCount(res.userBookedSeatsCount);
+        }
       } else {
         setActiveHold(null);
       }
@@ -129,14 +140,23 @@ const EventDetails = () => {
   // Handle seat toggle
   const handleToggleSeat = (seat) => {
     if (activeHold) return; // Prevent modifying selection while hold is active
-    setError('');
+    setSeatError('');
 
     const seatId = seat._id;
     if (selectedSeatIds.includes(seatId)) {
       setSelectedSeatIds((prev) => prev.filter((id) => id !== seatId));
     } else {
-      if (selectedSeatIds.length >= 4) {
-        setError('You may select a maximum of 4 seats per booking reservation.');
+      if (userBookedCount >= 4) {
+        setSeatError('You already booked your max seats for this event. Maximum limit is 4 seats per event.');
+        return;
+      }
+      const remainingQuota = Math.max(0, 4 - userBookedCount);
+      if (selectedSeatIds.length >= remainingQuota) {
+        if (userBookedCount > 0) {
+          setSeatError(`You have already booked ${userBookedCount} seat(s). You can only select up to ${remainingQuota} more seat(s). Maximum limit is 4 seats per event.`);
+        } else {
+          setSeatError('You may select a maximum of 4 seats per booking reservation.');
+        }
         return;
       }
       setSelectedSeatIds((prev) => [...prev, seatId]);
@@ -149,12 +169,23 @@ const EventDetails = () => {
     if (!currentEventId) return;
 
     if (eventStatus === 'Completed') {
-      setError('Completed Event! Bookings are closed for this event.');
+      setSeatError('Completed Event! Bookings are closed for this event.');
       return;
     }
 
     if (isOverTime) {
-      setError(`Event Time Over! Booking time has ended. This event closed at ${timing.closeTime}.`);
+      setSeatError(`Event Time Over! Booking time has ended. This event closed at ${timing.closeTime}.`);
+      return;
+    }
+
+    if (userBookedCount >= 4) {
+      setSeatError('You already booked your max seats for this event. Maximum limit is 4 seats per event.');
+      return;
+    }
+
+    const remainingQuota = Math.max(0, 4 - userBookedCount);
+    if (selectedSeatIds.length > remainingQuota) {
+      setSeatError(`You can only book up to ${remainingQuota} more seat(s) for this event. Maximum limit is 4 seats per event.`);
       return;
     }
 
@@ -165,13 +196,13 @@ const EventDetails = () => {
     }
 
     if (selectedSeatIds.length === 0) {
-      setError('Please select at least 1 seat on the map to hold.');
+      setSeatError('Please select at least 1 seat on the map to hold.');
       return;
     }
 
     try {
       setActionLoading(true);
-      setError('');
+      setSeatError('');
       setSuccessMessage('');
 
       const res = await holdApi.createHold(currentEventId, selectedSeatIds);
@@ -184,7 +215,7 @@ const EventDetails = () => {
     } catch (err) {
       const status = err.response?.status;
       const msg = err.response?.data?.message || 'Failed to hold selected seats.';
-      setError(msg);
+      setSeatError(msg);
       // If conflict (409), refresh seat availability immediately
       if (status === 409) {
         setSelectedSeatIds([]);
@@ -205,6 +236,8 @@ const EventDetails = () => {
 
       const res = await holdApi.confirmHold(activeHold.holdId);
       if (res.success) {
+        const bookedCount = activeHold.seats ? activeHold.seats.length : 0;
+        setUserBookedCount((prev) => prev + bookedCount);
         setActiveHold(null);
         setSelectedSeatIds([]);
         navigate('/my-bookings', {
@@ -307,7 +340,8 @@ const EventDetails = () => {
   const availableSeatsCount = seats.filter((s) => s.status === 'AVAILABLE').length;
   const totalSeatsCount = event?.totalSeats || seats.length;
   const isSoldOut = availableSeatsCount === 0;
-  const canBook = !isCompleted && !isSoldOut;
+  const isMaxSeatsReached = userBookedCount >= 4;
+  const canBook = !isCompleted && !isSoldOut && !isMaxSeatsReached;
 
   // Calculate pricing & seat data
   const myHeldSeatIds = activeHold ? activeHold.seats.map((s) => s.id || s._id) : [];
@@ -322,13 +356,26 @@ const EventDetails = () => {
 
   // Handle Book Now button click -> Opens BookingModal with summary
   const handleBookNow = () => {
+    setSeatError('');
+
     if (eventStatus === 'Completed') {
-      setError('Completed Event! Bookings are closed for this event.');
+      setSeatError('Completed Event! Bookings are closed for this event.');
       return;
     }
 
     if (isOverTime) {
-      setError(`Event Time Over! Booking time has ended. This event closed at ${timing.closeTime}.`);
+      setSeatError(`Event Time Over! Booking time has ended. This event closed at ${timing.closeTime}.`);
+      return;
+    }
+
+    if (userBookedCount >= 4) {
+      setSeatError('You already booked your max seats for this event. Maximum limit is 4 seats per event.');
+      return;
+    }
+
+    const remainingQuota = Math.max(0, 4 - userBookedCount);
+    if (selectedSeatIds.length > remainingQuota) {
+      setSeatError(`You can only book up to ${remainingQuota} more seat(s) for this event. Maximum limit is 4 seats per event.`);
       return;
     }
 
@@ -341,7 +388,7 @@ const EventDetails = () => {
     }
 
     if (selectedSeatIds.length === 0) {
-      setError('Please select at least 1 seat on the grid to book tickets.');
+      setSeatError('Please select at least 1 seat on the grid to book tickets.');
       return;
     }
 
@@ -362,6 +409,8 @@ const EventDetails = () => {
       const res = await bookingApi.createBooking(currentEventId, selectedSeatIds);
       if (res.success && res.data) {
         setConfirmedBooking(res.data);
+        const bookedCount = res.data.seats ? res.data.seats.length : selectedSeatIds.length;
+        setUserBookedCount((prev) => prev + bookedCount);
         setSelectedSeatIds([]);
         await fetchSeatsAndDetails(true);
       }
@@ -394,21 +443,21 @@ const EventDetails = () => {
       </div>
 
       {/* Event Header Card */}
-      <div className="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-sm">
+      <div className="bg-white/95 backdrop-blur-xl rounded-3xl border border-slate-200/80 overflow-hidden shadow-md shadow-slate-200/40">
         {event.imageUrl && (
-          <div className="relative h-48 sm:h-64 w-full overflow-hidden bg-slate-900">
+          <div className="relative h-48 sm:h-72 w-full overflow-hidden bg-slate-950">
             <img
               src={event.imageUrl}
               alt={event.title}
               className="w-full h-full object-cover"
             />
-            <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-black/20 to-transparent pointer-events-none" />
-            <div className="absolute bottom-4 left-6 right-6 flex items-center justify-between text-white">
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-black/40 backdrop-blur-md text-xs font-bold border border-white/20">
+            <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-slate-950/30 to-transparent pointer-events-none" />
+            <div className="absolute bottom-5 left-6 right-6 flex items-center justify-between text-white">
+              <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-black/50 backdrop-blur-md text-xs font-bold border border-white/20 shadow-inner">
                 <Tag className="w-3.5 h-3.5 text-sky-400" />
                 <span>{event.category || 'General Event'}</span>
               </span>
-              <span className="text-xl sm:text-2xl font-black bg-black/40 backdrop-blur-md px-3 py-1 rounded-xl border border-white/20">
+              <span className="text-xl sm:text-2xl font-black bg-black/50 backdrop-blur-md px-4 py-1.5 rounded-2xl border border-white/20 shadow-inner">
                 {formatCurrency(event.pricePerSeat)} <span className="text-xs font-normal text-slate-300">/ seat</span>
               </span>
             </div>
@@ -475,8 +524,20 @@ const EventDetails = () => {
                 {event.title}
               </h1>
 
-              {/* Event Attributes Badges: Date, Open Time, Close Time, Venue, Price, Seats */}
+              {/* Event Attributes Badges: Date, Open Time, Close Time, Venue, Price, Seats, Rating */}
               <div className="flex flex-wrap items-center gap-2.5 text-xs sm:text-sm text-slate-700 pt-1">
+                <div className="flex items-center gap-1.5 bg-amber-50 text-amber-900 px-3 py-1.5 rounded-xl border border-amber-200">
+                  <Star className="w-4 h-4 fill-amber-500 text-amber-500 shrink-0" />
+                  <span className="font-bold">
+                    {event.averageRating > 0 ? `${event.averageRating.toFixed(1)} / 5` : '⭐ Reviews'}
+                  </span>
+                  {event.totalReviews > 0 ? (
+                    <span className="text-xs text-amber-700">({event.totalReviews})</span>
+                  ) : (
+                    <span className="text-[11px] text-amber-600">Be first to rate</span>
+                  )}
+                </div>
+
                 <div className="flex items-center gap-1.5 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200">
                   <Calendar className="w-4 h-4 text-sky-600 shrink-0" />
                   <span><strong>Date:</strong> {timing.dateStr || formatDate(event.startTime)}</span>
@@ -734,6 +795,24 @@ const EventDetails = () => {
         </div>
       )}
 
+      {/* Maximum Seat Limit Banner */}
+      {isMaxSeatsReached && (
+        <div className="bg-amber-50 border border-amber-300 text-amber-900 rounded-2xl p-4 sm:p-5 flex items-center gap-3.5 shadow-sm">
+          <AlertCircle className="w-6 h-6 text-amber-600 shrink-0" />
+          <div>
+            <h4 className="text-sm font-bold text-amber-950 flex items-center gap-2">
+              <span>Maximum Limit Reached</span>
+              <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-200 text-amber-900 border border-amber-300">
+                4 / 4 Seats Booked
+              </span>
+            </h4>
+            <p className="text-xs text-amber-800 mt-1">
+              You already booked your max seats for this event. Maximum limit is 4 seats per event.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Notification Banners */}
       {error && <ErrorMessage message={error} onRetry={() => fetchSeatsAndDetails(true)} />}
 
@@ -755,7 +834,7 @@ const EventDetails = () => {
       {/* Main Grid & Reservation Summary Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
         {/* Left Column: Interactive Seat Grid */}
-        <div className="lg:col-span-2 bg-white rounded-3xl border border-slate-200 p-6 sm:p-8 shadow-sm space-y-6">
+        <div className="lg:col-span-2 bg-white/95 backdrop-blur-xl rounded-3xl border border-slate-200/80 p-6 sm:p-8 shadow-md shadow-slate-200/40 space-y-6">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
             <div>
               <h2 className="text-lg font-bold text-slate-900">Select Seats</h2>
@@ -767,6 +846,27 @@ const EventDetails = () => {
             </div>
             <SeatLegend />
           </div>
+
+          {/* In-place Seat Selection Error Alert */}
+          {seatError && (
+            <div className="p-4 rounded-2xl bg-rose-50 border border-rose-300 text-rose-900 text-xs sm:text-sm flex items-center justify-between gap-3 shadow-xs animate-fadeIn">
+              <div className="flex items-center gap-2.5">
+                <AlertCircle className="w-5 h-5 text-rose-600 shrink-0" />
+                <div>
+                  <span className="font-bold text-rose-950 block">Seat Limit / Selection Alert</span>
+                  <span className="font-semibold text-rose-800">{seatError}</span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSeatError('')}
+                className="text-rose-700 hover:text-rose-900 text-xs font-bold p-1 rounded-lg hover:bg-rose-100 transition shrink-0"
+                title="Dismiss"
+              >
+                ✕
+              </button>
+            </div>
+          )}
 
           {/* Seat Grid */}
           <div className="py-2">
@@ -799,13 +899,31 @@ const EventDetails = () => {
           )}
 
           {/* Booking Summary Card */}
-          <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm space-y-6">
+          <div className="bg-white/95 backdrop-blur-xl rounded-3xl border border-slate-200/80 p-6 shadow-lg shadow-slate-200/50 space-y-6">
             <h3 className="text-base font-bold text-slate-900 border-b border-slate-100 pb-3 flex items-center justify-between">
               <span>Reservation Summary</span>
               <span className="text-xs font-semibold text-slate-400">
-                {selectedSeatCount} / 4 seats
+                {userBookedCount > 0 ? `${userBookedCount}/4 booked • ` : ''}{selectedSeatCount} / {Math.max(0, 4 - userBookedCount)} seats
               </span>
             </h3>
+
+            {/* In-place Seat Error Alert inside Summary */}
+            {seatError && (
+              <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-center justify-between gap-2 animate-fadeIn">
+                <div className="flex items-center gap-1.5">
+                  <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                  <span className="font-semibold">{seatError}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSeatError('')}
+                  className="text-rose-600 hover:text-rose-800 font-bold text-xs p-0.5"
+                  title="Dismiss"
+                >
+                  ✕
+                </button>
+              </div>
+            )}
 
             <div className="space-y-3.5 text-xs sm:text-sm">
               <div className="flex justify-between items-start text-slate-600 gap-2">
@@ -848,7 +966,7 @@ const EventDetails = () => {
                   <span className="text-base font-bold text-slate-900 block">Total Amount</span>
                   <span className="text-[11px] text-slate-400">Server verified price</span>
                 </div>
-                <span className="text-2xl font-black text-sky-600">
+                <span className="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-sky-600 to-indigo-600">
                   {formatCurrency(totalPrice)}
                 </span>
               </div>
@@ -856,7 +974,16 @@ const EventDetails = () => {
 
             {/* Action Buttons */}
             <div className="space-y-3 pt-2">
-              {eventStatus === 'Completed' ? (
+              {isMaxSeatsReached ? (
+                <button
+                  type="button"
+                  disabled
+                  className="w-full py-3.5 px-4 rounded-xl text-sm font-bold text-amber-900 bg-amber-100 border border-amber-300 cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  <AlertCircle className="w-4 h-4 text-amber-700" />
+                  <span>You already booked your max seat (4/4)</span>
+                </button>
+              ) : eventStatus === 'Completed' ? (
                 <button
                   type="button"
                   disabled
@@ -895,7 +1022,7 @@ const EventDetails = () => {
                     type="button"
                     onClick={handleBookNow}
                     disabled={selectedSeatIds.length === 0 || actionLoading || isBooking}
-                    className="w-full py-3.5 px-4 rounded-xl text-sm font-bold text-white bg-sky-600 hover:bg-sky-500 shadow-md shadow-sky-600/20 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed active:scale-98"
+                    className="w-full py-3.5 px-4 rounded-2xl text-sm font-bold text-white bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 shadow-lg shadow-sky-600/25 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98]"
                   >
                     {isBooking ? (
                       <span className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -915,7 +1042,7 @@ const EventDetails = () => {
                     type="button"
                     onClick={handleHoldSeats}
                     disabled={selectedSeatIds.length === 0 || actionLoading || isBooking}
-                    className="w-full py-2.5 px-4 rounded-xl text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 transition-all flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="w-full py-2.5 px-4 rounded-2xl text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-200/80 transition-all flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98]"
                   >
                     <Clock className="w-3.5 h-3.5 text-slate-500" />
                     <span>Hold Seats for 120s First</span>
@@ -928,7 +1055,7 @@ const EventDetails = () => {
                     type="button"
                     onClick={handleConfirmBooking}
                     disabled={actionLoading}
-                    className="w-full py-3.5 px-4 rounded-xl text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-500 shadow-md shadow-emerald-600/20 transition-all flex items-center justify-center gap-2 disabled:opacity-50 active:scale-98"
+                    className="w-full py-3.5 px-4 rounded-2xl text-sm font-bold text-white bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 shadow-lg shadow-emerald-600/25 transition-all flex items-center justify-center gap-2 disabled:opacity-50 active:scale-[0.98]"
                   >
                     {actionLoading ? (
                       <span className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -944,7 +1071,7 @@ const EventDetails = () => {
                     type="button"
                     onClick={() => setShowReleaseDialog(true)}
                     disabled={actionLoading}
-                    className="w-full py-2.5 px-4 rounded-xl text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 transition-all disabled:opacity-50"
+                    className="w-full py-2.5 px-4 rounded-2xl text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 transition-all disabled:opacity-50 active:scale-[0.98]"
                   >
                     Release Held Seats
                   </button>
@@ -958,6 +1085,9 @@ const EventDetails = () => {
           </div>
         </div>
       </div>
+
+      {/* Customer Reviews & Ratings Section */}
+      <EventReviews eventId={event?._id || effectiveEventId} eventTitle={event?.title} />
 
       {/* Confirmation Dialog for Releasing Seats */}
       <ConfirmDialog

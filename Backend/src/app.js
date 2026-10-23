@@ -10,6 +10,7 @@ const eventRoutes = require('./routes/eventRoutes');
 const holdRoutes = require('./routes/holdRoutes');
 const bookingRoutes = require('./routes/bookingRoutes');
 const adminRoutes = require('./routes/adminRoutes');
+const reviewRoutes = require('./routes/reviewRoutes');
 const { notFoundHandler, errorHandler } = require('./middlewares/errorMiddleware');
 
 const app = express();
@@ -52,7 +53,9 @@ app.use('/api/users', userRoutes);
 app.use('/api/events', eventRoutes);
 app.use('/api/holds', holdRoutes);
 app.use('/api/bookings', bookingRoutes);
+app.use('/api/system-console-r6t8', adminRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/reviews', reviewRoutes);
 
 // 404 Handler
 app.use(notFoundHandler);

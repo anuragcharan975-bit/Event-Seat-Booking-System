@@ -11,10 +11,13 @@ import {
   X,
   Clock,
   ShieldCheck,
-  Receipt
+  Receipt,
+  Download
 } from 'lucide-react';
 import { formatCurrency } from '../utils/formatCurrency';
 import { formatDate } from '../utils/formatDate';
+import { downloadTicketPdf } from '../utils/ticketPdfGenerator';
+import { useAuth } from '../context/AuthContext';
 
 const BookingModal = ({
   isOpen,
@@ -30,7 +33,9 @@ const BookingModal = ({
   onExploreEvents,
   activeHold = null
 }) => {
+  const { user } = useAuth();
   const [copiedRef, setCopiedRef] = useState(false);
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
 
   if (!isOpen) return null;
 
@@ -41,6 +46,26 @@ const BookingModal = ({
     navigator.clipboard.writeText(ref);
     setCopiedRef(true);
     setTimeout(() => setCopiedRef(false), 2500);
+  };
+
+  const handleDownloadPdf = async () => {
+    if (!confirmedBooking) return;
+    try {
+      setDownloadingPdf(true);
+      await downloadTicketPdf({
+        booking: {
+          ...confirmedBooking,
+          event: event || confirmedBooking.event,
+          seats: confirmedBooking.seats || selectedSeats
+        },
+        user,
+        event
+      });
+    } catch (err) {
+      console.error('Failed to generate ticket PDF:', err);
+    } finally {
+      setDownloadingPdf(false);
+    }
   };
 
   const seatCount = selectedSeats.length;
@@ -175,7 +200,7 @@ const BookingModal = ({
                   type="button"
                   onClick={onClose}
                   disabled={isConfirming}
-                  className="w-full sm:w-auto px-5 py-2.5 rounded-xl text-xs sm:text-sm font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5"
+                  className="w-full sm:w-auto px-5 py-2.5 rounded-2xl text-xs sm:text-sm font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5"
                 >
                   <ArrowLeft className="w-4 h-4" />
                   <span>Back</span>
@@ -185,7 +210,7 @@ const BookingModal = ({
                   type="button"
                   onClick={onConfirmBooking}
                   disabled={isConfirming || seatCount === 0}
-                  className="w-full sm:w-auto px-6 py-2.5 rounded-xl text-xs sm:text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-500 shadow-md shadow-emerald-600/20 transition-all flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full sm:w-auto px-6 py-2.5 rounded-2xl text-xs sm:text-sm font-bold text-white bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 shadow-lg shadow-emerald-600/25 transition-all flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isConfirming ? (
                     <>
@@ -269,11 +294,30 @@ const BookingModal = ({
               </div>
 
               {/* Post-Booking Action Buttons */}
-              <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
+              <div className="flex flex-col sm:flex-row items-center justify-center gap-2.5 pt-2">
+                <button
+                  type="button"
+                  onClick={handleDownloadPdf}
+                  disabled={downloadingPdf}
+                  className="w-full sm:w-auto px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold text-white bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 shadow-md shadow-emerald-600/25 transition-all flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50"
+                >
+                  {downloadingPdf ? (
+                    <>
+                      <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      <span>Generating PDF...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Download className="w-4 h-4" />
+                      <span>Download Ticket (PDF)</span>
+                    </>
+                  )}
+                </button>
+
                 <button
                   type="button"
                   onClick={onViewMyBookings}
-                  className="w-full sm:w-auto px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold text-white bg-sky-600 hover:bg-sky-500 shadow-md shadow-sky-600/20 transition-all flex items-center justify-center gap-2 active:scale-95"
+                  className="w-full sm:w-auto px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold text-sky-700 bg-sky-50 hover:bg-sky-100 border border-sky-200 transition-all flex items-center justify-center gap-1.5 active:scale-95"
                 >
                   <Receipt className="w-4 h-4" />
                   <span>View in My Bookings</span>
@@ -282,9 +326,9 @@ const BookingModal = ({
                 <button
                   type="button"
                   onClick={onExploreEvents}
-                  className="w-full sm:w-auto px-5 py-2.5 rounded-xl text-xs sm:text-sm font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 transition"
+                  className="w-full sm:w-auto px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 transition"
                 >
-                  <span>Book Another Event</span>
+                  <span>More Events</span>
                 </button>
               </div>
             </div>

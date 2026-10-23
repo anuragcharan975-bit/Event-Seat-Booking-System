@@ -63,7 +63,6 @@ const Profile = () => {
   const [passwordSuccess, setPasswordSuccess] = useState('');
   const [passwordError, setPasswordError] = useState('');
   const [resendCountdown, setResendCountdown] = useState(0);
-  const [devOtpHint, setDevOtpHint] = useState('');
 
   // Logout dialog
   const [showLogoutDialog, setShowLogoutDialog] = useState(false);
@@ -152,9 +151,6 @@ const Profile = () => {
         setPasswordSuccess(
           res.message || `A 6-digit verification code has been sent to ${user?.email}. Code is valid for 5 minutes.`
         );
-        if (res.devOtp) {
-          setDevOtpHint(res.devOtp);
-        }
         setResendCountdown(60);
       }
     } catch (err) {
@@ -213,7 +209,6 @@ const Profile = () => {
         setNewPassword('');
         setConfirmPassword('');
         setOtpSent(false);
-        setDevOtpHint('');
         setTimeout(() => setPasswordSuccess(''), 6000);
       }
     } catch (err) {
@@ -499,20 +494,29 @@ const Profile = () => {
               Securely update your password with current password verification and 6-digit email OTP
             </p>
           </div>
-          {!showPasswordSection && (
-            <button
-              type="button"
-              onClick={() => {
-                setShowPasswordSection(true);
-                setPasswordError('');
-                setPasswordSuccess('');
-              }}
-              className="self-start sm:self-center px-4 py-2 text-xs font-bold text-sky-700 bg-sky-50 hover:bg-sky-100 border border-sky-200 rounded-xl transition flex items-center gap-1.5"
+          <div className="flex flex-wrap items-center gap-2">
+            <Link
+              to="/change-password"
+              className="px-3.5 py-2 text-xs font-bold text-sky-700 bg-sky-50 hover:bg-sky-100 border border-sky-200 rounded-xl transition flex items-center gap-1.5"
             >
-              <Lock className="w-3.5 h-3.5" />
-              <span>Change Password</span>
-            </button>
-          )}
+              <KeyRound className="w-3.5 h-3.5" />
+              <span>Change Password (OTP)</span>
+            </Link>
+            {!showPasswordSection && (
+              <button
+                type="button"
+                onClick={() => {
+                  setShowPasswordSection(true);
+                  setPasswordError('');
+                  setPasswordSuccess('');
+                }}
+                className="self-start sm:self-center px-4 py-2 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded-xl transition flex items-center gap-1.5"
+              >
+                <Lock className="w-3.5 h-3.5" />
+                <span>Quick Reset</span>
+              </button>
+            )}
+          </div>
         </div>
 
         {showPasswordSection && (
@@ -597,22 +601,6 @@ const Profile = () => {
                 </button>
               </div>
             </div>
-
-            {/* Development OTP Banner if in local dev */}
-            {devOtpHint && (
-              <div className="px-4 py-2.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs flex items-center justify-between">
-                <span>
-                  🛠️ Verification Code: <strong className="font-mono text-sm tracking-widest text-amber-950 font-black">{devOtpHint}</strong>
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setOtp(devOtpHint)}
-                  className="px-2.5 py-1 text-[11px] font-bold bg-amber-200 hover:bg-amber-300 rounded-lg text-amber-900 transition"
-                >
-                  Auto Fill
-                </button>
-              </div>
-            )}
 
             {/* STEP 2: Enter 6-Digit OTP & New Password (enabled once OTP is sent) */}
             {otpSent && (

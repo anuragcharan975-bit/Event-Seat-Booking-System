@@ -210,7 +210,7 @@ const Events = () => {
   return (
     <div className="space-y-8 animate-fadeIn pb-12">
       {/* Catalog Header Banner */}
-      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-slate-900 via-sky-950 to-slate-900 text-white p-6 sm:p-8 shadow-xl border border-sky-900/30">
+      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-slate-950 via-slate-900 to-sky-950 text-white p-6 sm:p-10 shadow-2xl border border-sky-500/20">
         <div className="relative z-10 max-w-3xl">
           {/* Breadcrumb Navigation */}
           <nav className="flex items-center gap-2 text-xs text-sky-300/80 mb-3 font-medium">
@@ -225,30 +225,30 @@ const Events = () => {
             )}
           </nav>
 
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-sky-500/20 text-sky-300 text-xs font-semibold mb-3 border border-sky-500/30 backdrop-blur-sm">
+          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-sky-500/15 text-sky-300 text-xs font-semibold mb-3 border border-sky-400/30 backdrop-blur-md shadow-inner">
             <Sparkles className="w-3.5 h-3.5 text-sky-400" />
             <span>High-Performance Live Ticket Engine</span>
           </div>
 
-          <h1 className="text-2xl sm:text-4xl font-black tracking-tight mb-3 leading-tight">
-            Explore <span className="text-transparent bg-clip-text bg-gradient-to-r from-sky-400 to-teal-300">Events Catalog</span>
+          <h1 className="text-3xl sm:text-5xl font-black tracking-tight mb-3 leading-tight">
+            Explore <span className="text-transparent bg-clip-text bg-gradient-to-r from-sky-400 via-teal-300 to-indigo-300">Live Events</span>
           </h1>
 
           <p className="text-slate-300 text-xs sm:text-sm leading-relaxed max-w-2xl">
-            Browse our full catalog of upcoming live events. Search by title, venue, or artist, filter by category and status, sort results, and book tickets with real-time seat map locks.
+            Browse our full catalog of upcoming live concerts, sports, comedy, and theater. Search by title, venue, or artist, filter by category and status, and reserve seats with real-time atomic locks.
           </p>
 
           {/* Quick Info Badges */}
-          <div className="flex flex-wrap items-center gap-3 sm:gap-4 mt-5 pt-4 border-t border-white/10 text-xs text-slate-300">
-            <div className="flex items-center gap-1.5">
+          <div className="flex flex-wrap items-center gap-3 sm:gap-4 mt-6 pt-5 border-t border-white/10 text-xs text-slate-300">
+            <div className="flex items-center gap-1.5 bg-white/5 backdrop-blur-md px-3 py-1.5 rounded-xl border border-white/10">
               <Clock className="w-4 h-4 text-sky-400" />
               <span>120-Second Atomic Hold</span>
             </div>
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1.5 bg-white/5 backdrop-blur-md px-3 py-1.5 rounded-xl border border-white/10">
               <ShieldCheck className="w-4 h-4 text-emerald-400" />
               <span>ACID Guaranteed Booking</span>
             </div>
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1.5 bg-white/5 backdrop-blur-md px-3 py-1.5 rounded-xl border border-white/10">
               <Sparkles className="w-4 h-4 text-amber-400" />
               <span>Real-Time Live Availability</span>
             </div>
@@ -256,8 +256,8 @@ const Events = () => {
         </div>
 
         {/* Ambient background decoration */}
-        <div className="absolute -right-10 -bottom-10 w-80 h-80 bg-sky-500/10 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute right-1/3 -top-10 w-56 h-56 bg-teal-500/10 rounded-full blur-2xl pointer-events-none" />
+        <div className="absolute -right-10 -bottom-10 w-96 h-96 bg-sky-500/15 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute right-1/3 -top-10 w-72 h-72 bg-indigo-500/15 rounded-full blur-3xl pointer-events-none" />
       </div>
 
       {/* Primary Category Filter Tabs */}
@@ -278,7 +278,7 @@ const Events = () => {
           )}
         </div>
 
-        <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none">
+        <div className="flex items-center gap-2.5 overflow-x-auto pb-2 scrollbar-none">
           {REQUIRED_CATEGORIES.map((cat) => {
             const Icon = cat.icon;
             const isActive =
@@ -290,10 +290,10 @@ const Events = () => {
                 key={cat.id}
                 type="button"
                 onClick={() => handleCategoryClick(cat.id)}
-                className={`px-4 py-2.5 rounded-2xl text-xs sm:text-sm font-semibold transition-all duration-200 flex items-center gap-2 shrink-0 border ${
+                className={`px-4 py-2.5 rounded-2xl text-xs sm:text-sm font-bold transition-all duration-200 flex items-center gap-2 shrink-0 border ${
                   isActive
-                    ? 'bg-sky-600 text-white border-sky-600 shadow-md shadow-sky-600/25 scale-[1.02]'
-                    : 'bg-white text-slate-700 hover:text-slate-900 hover:bg-slate-50 border-slate-200'
+                    ? 'bg-gradient-to-r from-sky-600 to-indigo-600 text-white border-transparent shadow-md shadow-sky-600/30 scale-[1.02] ring-2 ring-sky-400/20'
+                    : 'bg-white text-slate-700 hover:text-slate-900 hover:bg-slate-50 border-slate-200/80 shadow-2xs'
                 }`}
               >
                 <Icon className={`w-4 h-4 ${isActive ? 'text-white' : 'text-sky-600'}`} />
@@ -305,9 +305,9 @@ const Events = () => {
       </div>
 
       {/* Search, Filter, Sort & Date Controls */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm space-y-4">
+      <div className="bg-white/95 backdrop-blur-xl rounded-3xl border border-slate-200/80 p-6 shadow-md shadow-slate-200/40 space-y-5">
         {/* Quick Status Filter Tabs: Pending, In Progress, Completed */}
-        <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-100">
+        <div className="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-slate-100">
           <div className="flex items-center gap-2">
             <Activity className="w-4 h-4 text-sky-600" />
             <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">
@@ -339,7 +339,7 @@ const Events = () => {
                         ? 'bg-blue-600 text-white border-blue-700 shadow-sm shadow-blue-600/30 ring-2 ring-blue-400/30'
                         : st.id === 'completed'
                         ? 'bg-emerald-600 text-white border-emerald-700 shadow-sm shadow-emerald-600/30 ring-2 ring-emerald-400/30'
-                        : 'bg-sky-600 text-white border-sky-700 shadow-sm shadow-sky-600/30 ring-2 ring-sky-400/30'
+                        : 'bg-gradient-to-r from-sky-600 to-indigo-600 text-white border-transparent shadow-sm shadow-sky-600/30 ring-2 ring-sky-400/30'
                       : 'bg-slate-50 text-slate-600 hover:text-slate-900 hover:bg-slate-100 border-slate-200'
                   }`}
                 >
@@ -351,7 +351,7 @@ const Events = () => {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-center">
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-3.5 items-center">
           {/* 1. Case-insensitive Search Input */}
           <div className="md:col-span-5 relative">
             <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
@@ -360,7 +360,7 @@ const Events = () => {
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder="Search title, venue, or Pending, In Progress, Completed..."
-              className="w-full pl-10 pr-9 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:bg-white transition"
+              className="w-full pl-10 pr-9 py-2.5 bg-slate-50/80 hover:bg-slate-50 border border-slate-200/90 rounded-2xl text-sm placeholder-slate-400 focus:outline-none focus:ring-4 focus:ring-sky-500/10 focus:border-sky-500 focus:bg-white transition"
             />
             {searchTerm && (
               <button
@@ -383,7 +383,7 @@ const Events = () => {
                 setCurrentPage(1);
               }}
               aria-label="Filter by Status"
-              className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-800 font-semibold focus:outline-none focus:ring-2 focus:ring-sky-500 focus:bg-white transition cursor-pointer"
+              className="w-full px-3.5 py-2.5 bg-slate-50/80 hover:bg-slate-50 border border-slate-200/90 rounded-2xl text-sm text-slate-800 font-semibold focus:outline-none focus:ring-4 focus:ring-sky-500/10 focus:border-sky-500 focus:bg-white transition cursor-pointer"
             >
               <option value="all">Status: All Status</option>
               <option value="pending">⏳ Status: Pending</option>
@@ -401,7 +401,7 @@ const Events = () => {
                 setCurrentPage(1);
               }}
               aria-label="Sort Events"
-              className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-700 font-medium focus:outline-none focus:ring-2 focus:ring-sky-500 focus:bg-white transition cursor-pointer"
+              className="w-full px-3 py-2.5 bg-slate-50/80 hover:bg-slate-50 border border-slate-200/90 rounded-2xl text-sm text-slate-700 font-medium focus:outline-none focus:ring-4 focus:ring-sky-500/10 focus:border-sky-500 focus:bg-white transition cursor-pointer"
             >
               <option value="newest">Sort: Newest</option>
               <option value="oldest">Sort: Oldest</option>
@@ -421,7 +421,7 @@ const Events = () => {
               }}
               title="Filter by date (optional)"
               aria-label="Filter by date (optional)"
-              className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:bg-white transition cursor-pointer"
+              className="w-full px-3 py-2.5 bg-slate-50/80 hover:bg-slate-50 border border-slate-200/90 rounded-2xl text-sm text-slate-700 focus:outline-none focus:ring-4 focus:ring-sky-500/10 focus:border-sky-500 focus:bg-white transition cursor-pointer"
             />
             {selectedDate && (
               <button
@@ -617,35 +617,35 @@ const Events = () => {
 
             {/* Pagination Controls (5 records per page requirement) */}
             {totalPages > 1 && (
-              <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-8 border-t border-slate-200 mt-8">
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-8 border-t border-slate-200/80 mt-8">
                 <div className="text-xs text-slate-500 font-medium">
                   Showing <span className="font-bold text-slate-800">{Math.min((currentPage - 1) * pageSize + 1, totalEvents)}</span> to{' '}
                   <span className="font-bold text-slate-800">{Math.min(currentPage * pageSize, totalEvents)}</span> of{' '}
                   <span className="font-bold text-slate-800">{totalEvents}</span> events (Page {currentPage} of {totalPages})
                 </div>
 
-                <div className="flex items-center gap-1.5">
+                <div className="flex items-center gap-2">
                   <button
                     type="button"
                     onClick={() => handlePageChange(currentPage - 1)}
                     disabled={currentPage <= 1}
-                    className="px-3.5 py-2 rounded-xl border border-slate-200 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition flex items-center gap-1 shadow-xs bg-white"
+                    className="px-4 py-2.5 rounded-2xl border border-slate-200/90 text-xs font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition flex items-center gap-1.5 shadow-2xs bg-white active:scale-95"
                   >
                     <ChevronLeft className="w-4 h-4" />
                     <span>Previous</span>
                   </button>
 
                   {/* Page Number Buttons */}
-                  <div className="flex items-center gap-1">
+                  <div className="flex items-center gap-1.5">
                     {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNum) => (
                       <button
                         key={pageNum}
                         type="button"
                         onClick={() => handlePageChange(pageNum)}
-                        className={`w-9 h-9 rounded-xl text-xs font-bold transition flex items-center justify-center ${
+                        className={`w-9 h-9 rounded-2xl text-xs font-bold transition flex items-center justify-center ${
                           currentPage === pageNum
-                            ? 'bg-sky-600 text-white shadow-md shadow-sky-600/30'
-                            : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
+                            ? 'bg-gradient-to-r from-sky-600 to-indigo-600 text-white shadow-md shadow-sky-600/30 scale-105'
+                            : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200/80 shadow-2xs'
                         }`}
                       >
                         {pageNum}
@@ -657,7 +657,7 @@ const Events = () => {
                     type="button"
                     onClick={() => handlePageChange(currentPage + 1)}
                     disabled={currentPage >= totalPages}
-                    className="px-3.5 py-2 rounded-xl border border-slate-200 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition flex items-center gap-1 shadow-xs bg-white"
+                    className="px-4 py-2.5 rounded-2xl border border-slate-200/90 text-xs font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition flex items-center gap-1.5 shadow-2xs bg-white active:scale-95"
                   >
                     <span>Next</span>
                     <ChevronRight className="w-4 h-4" />

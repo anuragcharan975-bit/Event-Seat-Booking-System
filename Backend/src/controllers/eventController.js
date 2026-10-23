@@ -287,7 +287,9 @@ const getEvents = asyncHandler(async (req, res) => {
         status: effectiveEventStatus,
         eventStatus: effectiveEventStatus,
         seatStatus: effectiveStatus,
-        isSoldOut: availableSeats === 0
+        isSoldOut: availableSeats === 0,
+        averageRating: event.averageRating || 0,
+        totalReviews: event.totalReviews || 0
       };
     })
   );
@@ -369,7 +371,9 @@ const getEventSeats = asyncHandler(async (req, res) => {
       totalSeats: seatGrid.length || event.totalSeats,
       availableSeats: availableSeatsCount,
       status: (event.endTime && new Date(event.endTime) <= now) || event.status === 'Completed' ? 'Completed' : (event.status || 'Pending'),
-      eventStatus: (event.endTime && new Date(event.endTime) <= now) || event.status === 'Completed' ? 'Completed' : (event.status || 'Pending')
+      eventStatus: (event.endTime && new Date(event.endTime) <= now) || event.status === 'Completed' ? 'Completed' : (event.status || 'Pending'),
+      averageRating: event.averageRating || 0,
+      totalReviews: event.totalReviews || 0
     },
     seats: seatGrid
   });
@@ -485,7 +489,9 @@ const getEventBySlug = asyncHandler(async (req, res) => {
       totalSeats: seatGrid.length || event.totalSeats,
       availableSeats: availableSeatsCount,
       status: (event.endTime && new Date(event.endTime) <= now) || event.status === 'Completed' ? 'Completed' : (event.status || 'Pending'),
-      eventStatus: (event.endTime && new Date(event.endTime) <= now) || event.status === 'Completed' ? 'Completed' : (event.status || 'Pending')
+      eventStatus: (event.endTime && new Date(event.endTime) <= now) || event.status === 'Completed' ? 'Completed' : (event.status || 'Pending'),
+      averageRating: event.averageRating || 0,
+      totalReviews: event.totalReviews || 0
     },
     seats: seatGrid
   });

@@ -12,6 +12,8 @@ import Profile from './pages/Profile';
 import AdminDashboard from './pages/AdminDashboard';
 import Login from './pages/Login';
 import Register from './pages/Register';
+import ChangePassword from './pages/ChangePassword';
+import RefundPolicy from './pages/RefundPolicy';
 import NotFound from './pages/NotFound';
 
 function App() {
@@ -42,7 +44,12 @@ function App() {
                 </ProtectedRoute>
               }
             />
-            <Route path="admin" element={<AdminDashboard />} />
+            <Route path="system-console-r6t8" element={<AdminDashboard />} />
+            <Route path="admin" element={<NotFound />} />
+            <Route path="refundpolicy" element={<RefundPolicy />} />
+            <Route path="refund-policy" element={<RefundPolicy />} />
+            <Route path="change-password" element={<ChangePassword />} />
+            <Route path="forgot-password" element={<ChangePassword />} />
             <Route path="login" element={<Login />} />
             <Route path="register" element={<Register />} />
             <Route path="*" element={<NotFound />} />

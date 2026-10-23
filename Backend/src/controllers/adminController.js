@@ -4,6 +4,7 @@ const Seat = require('../models/Seat');
 const Booking = require('../models/Booking');
 const User = require('../models/User');
 const SeatHold = require('../models/SeatHold');
+const Review = require('../models/Review');
 const bookingService = require('../services/bookingService');
 const { syncCompletedEvents } = require('../services/eventLifecycleService');
 const asyncHandler = require('../utils/asyncHandler');
@@ -21,6 +22,7 @@ const getStats = asyncHandler(async (req, res) => {
     totalSeats,
     totalBookings,
     totalUsers,
+    totalReviews,
     confirmedBookings,
     recentBookings,
     recentUsers
@@ -29,6 +31,7 @@ const getStats = asyncHandler(async (req, res) => {
     Seat.countDocuments({}),
     Booking.countDocuments({ status: 'CONFIRMED' }),
     User.countDocuments({}),
+    Review.countDocuments({}),
     Booking.find({ status: 'CONFIRMED' }, 'amount'),
     Booking.find({})
       .sort({ createdAt: -1 })
@@ -50,6 +53,7 @@ const getStats = asyncHandler(async (req, res) => {
       totalSeats,
       totalBookings,
       totalUsers,
+      totalReviews,
       totalRevenue,
       recentBookings,
       recentUsers
@@ -93,6 +97,8 @@ const getEvents = asyncHandler(async (req, res) => {
         pricePerSeat: event.pricePerSeat,
         totalSeats: event.totalSeats || 40,
         availableSeats,
+        averageRating: event.averageRating || 0,
+        totalReviews: event.totalReviews || 0,
         imageUrl: event.imageUrl,
         description: event.description,
         createdAt: event.createdAt
@@ -522,6 +528,83 @@ const cancelBooking = asyncHandler(async (req, res) => {
   });
 });
 
+/**
+ * @route   GET /api/admin/reviews
+ * @desc    Get all reviews with optional eventId, rating, or keyword search
+ * @access  Private (Admin only)
+ */
+const getReviews = asyncHandler(async (req, res) => {
+  const { eventId, rating, search } = req.query;
+
+  const query = {};
+
+  if (eventId && eventId !== 'all') {
+    if (mongoose.Types.ObjectId.isValid(eventId)) {
+      query.eventId = eventId;
+    }
+  }
+
+  if (rating && rating !== 'all') {
+    const num = parseInt(rating, 10);
+    if (!isNaN(num)) query.rating = num;
+  }
+
+  if (search && typeof search === 'string' && search.trim()) {
+    const escaped = search.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const regex = new RegExp(escaped, 'i');
+    query.$or = [
+      { userName: regex },
+      { userEmail: regex },
+      { comment: regex }
+    ];
+  }
+
+  const reviews = await Review.find(query)
+    .sort({ createdAt: -1 })
+    .populate('eventId', 'title category imageUrl slug');
+
+  return res.status(200).json({
+    success: true,
+    count: reviews.length,
+    data: reviews
+  });
+});
+
+/**
+ * @route   DELETE /api/admin/reviews/:reviewId
+ * @desc    Admin deletes a review and triggers recalculation of event statistics
+ * @access  Private (Admin only)
+ */
+const deleteReview = asyncHandler(async (req, res) => {
+  const { reviewId } = req.params;
+
+  if (!mongoose.Types.ObjectId.isValid(reviewId)) {
+    return res.status(400).json({
+      success: false,
+      message: 'Invalid review ID format'
+    });
+  }
+
+  const review = await Review.findById(reviewId);
+  if (!review) {
+    return res.status(404).json({
+      success: false,
+      message: 'Review not found'
+    });
+  }
+
+  const eventId = review.eventId;
+  await Review.findByIdAndDelete(reviewId);
+
+  // Recalculate event rating statistics
+  await Review.calculateAverageRating(eventId);
+
+  return res.status(200).json({
+    success: true,
+    message: 'Review deleted successfully'
+  });
+});
+
 module.exports = {
   getStats,
   getEvents,
@@ -533,5 +616,7 @@ module.exports = {
   updateUserRole,
   deleteUser,
   getBookings,
-  cancelBooking
+  cancelBooking,
+  getReviews,
+  deleteReview
 };

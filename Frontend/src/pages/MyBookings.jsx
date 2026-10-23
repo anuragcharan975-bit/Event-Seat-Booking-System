@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation, Link, useNavigate } from 'react-router-dom';
 import { bookingApi } from '../api/bookingApi';
+import { useAuth } from '../context/AuthContext';
+import { downloadTicketPdf } from '../utils/ticketPdfGenerator';
 import Loading from '../components/Loading';
 import ErrorMessage from '../components/ErrorMessage';
 import ConfirmDialog from '../components/ConfirmDialog';
@@ -20,15 +22,18 @@ import {
   AlertTriangle,
   RotateCcw,
   Sparkles,
-  Tag
+  Tag,
+  Download
 } from 'lucide-react';
 
 const MyBookings = () => {
+  const { user } = useAuth();
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL'); // 'ALL' | 'CONFIRMED' | 'CANCELLED'
+  const [downloadingId, setDownloadingId] = useState(null);
 
   // Cancellation modal state
   const [cancellingBooking, setCancellingBooking] = useState(null);
@@ -72,6 +77,20 @@ const MyBookings = () => {
     }, 2500);
   };
 
+  const handleDownloadTicket = async (booking) => {
+    if (!booking) return;
+    try {
+      setDownloadingId(booking._id);
+      setError('');
+      await downloadTicketPdf({ booking, user });
+    } catch (err) {
+      console.error('Failed to generate ticket PDF:', err);
+      setError('Could not generate ticket PDF. Please try again.');
+    } finally {
+      setDownloadingId(null);
+    }
+  };
+
   const handleCancelClick = (booking) => {
     setError('');
     setSuccessMessage('');
@@ -111,59 +130,80 @@ const MyBookings = () => {
   const cancelledCount = bookings.filter((b) => b.status === 'CANCELLED').length;
 
   return (
-    <div className="space-y-8 animate-fadeIn max-w-4xl mx-auto">
+    <div className="space-y-8 animate-fadeIn max-w-4xl mx-auto pb-12">
       {/* Header Banner */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 pb-5">
-        <div className="flex items-center gap-3.5">
-          <div className="p-3 bg-sky-50 text-sky-600 rounded-2xl border border-sky-100 shadow-sm">
-            <BookmarkCheck className="w-6 h-6" />
+      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-slate-950 via-slate-900 to-sky-950 text-white p-6 sm:p-8 shadow-xl border border-sky-500/20 flex flex-col sm:flex-row sm:items-center justify-between gap-6">
+        <div className="relative z-10 flex items-center gap-4">
+          <div className="p-3.5 bg-sky-500/15 text-sky-400 rounded-2xl border border-sky-400/30 backdrop-blur-md shadow-inner">
+            <BookmarkCheck className="w-7 h-7" />
           </div>
           <div>
-            <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
+            <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
               My Bookings
             </h1>
-            <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
-              Manage your confirmed tickets, view reservations, and track history
+            <p className="text-xs sm:text-sm text-slate-300 mt-0.5">
+              Manage your confirmed tickets, view reservations, and download receipts
             </p>
           </div>
         </div>
 
         <Link
           to="/events"
-          className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-sky-700 bg-sky-50 hover:bg-sky-100 border border-sky-200 rounded-xl transition self-start sm:self-center"
+          className="relative z-10 inline-flex items-center gap-2 px-5 py-2.5 text-xs font-bold text-white bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 rounded-2xl shadow-lg shadow-sky-600/25 transition active:scale-95 self-start sm:self-center"
         >
           <span>Browse More Events</span>
           <ArrowRight className="w-3.5 h-3.5" />
         </Link>
+
+        {/* Ambient background decoration */}
+        <div className="absolute -right-8 -bottom-8 w-64 h-64 bg-sky-500/15 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute right-1/2 -top-8 w-48 h-48 bg-indigo-500/15 rounded-full blur-2xl pointer-events-none" />
       </div>
 
       {/* Fresh Booking Success Banner */}
       {justBookedRef && (
-        <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-5 text-emerald-900 flex items-start gap-4 shadow-sm animate-bounceOnce">
-          <CheckCircle2 className="w-6 h-6 text-emerald-600 shrink-0 mt-0.5" />
-          <div className="flex-1">
-            <h4 className="font-bold text-base">Booking Confirmed Successfully!</h4>
-            <p className="text-sm text-emerald-800 mt-1">
-              Your booking reference is{' '}
-              <span className="font-mono font-bold bg-white px-2 py-0.5 rounded border border-emerald-300">
-                {justBookedRef}
-              </span>
-              . Your seats have been permanently locked and reserved.
-            </p>
+        <div className="bg-emerald-50 border border-emerald-300 rounded-2xl p-5 text-emerald-950 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm animate-bounceOnce">
+          <div className="flex items-start gap-4">
+            <CheckCircle2 className="w-6 h-6 text-emerald-600 shrink-0 mt-0.5" />
+            <div>
+              <h4 className="font-black text-base text-emerald-950">Booking Confirmed Successfully!</h4>
+              <p className="text-sm text-emerald-800 mt-1">
+                Your booking reference is{' '}
+                <span className="font-mono font-black bg-white px-2.5 py-0.5 rounded-lg border border-emerald-300 text-emerald-950 shadow-2xs">
+                  {justBookedRef}
+                </span>
+                . Your seats have been permanently locked and reserved.
+              </p>
+            </div>
           </div>
+          {bookings.find((b) => b.bookingReference === justBookedRef) && (
+            <button
+              type="button"
+              onClick={() =>
+                handleDownloadTicket(
+                  bookings.find((b) => b.bookingReference === justBookedRef)
+                )
+              }
+              disabled={Boolean(downloadingId)}
+              className="px-4 py-2.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-500 rounded-xl transition shadow-md shadow-emerald-600/25 flex items-center gap-2 shrink-0 active:scale-95 disabled:opacity-50"
+            >
+              <Download className="w-4 h-4" />
+              <span>Download Ticket (PDF)</span>
+            </button>
+          )}
         </div>
       )}
 
       {/* Operation Feedback Messages */}
       {successMessage && (
-        <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl p-4 flex items-center justify-between gap-3 shadow-sm">
+        <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-2xl p-4 flex items-center justify-between gap-3 shadow-xs">
           <div className="flex items-center gap-2.5">
             <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
-            <p className="text-sm font-medium">{successMessage}</p>
+            <p className="text-sm font-semibold">{successMessage}</p>
           </div>
           <button
             onClick={() => setSuccessMessage('')}
-            className="text-emerald-700 hover:text-emerald-900 text-xs font-bold p-1"
+            className="text-emerald-700 hover:text-emerald-900 text-xs font-bold p-1 rounded-lg hover:bg-emerald-100 transition"
           >
             ✕
           </button>
@@ -174,45 +214,45 @@ const MyBookings = () => {
 
       {/* Status Filter Tabs (when bookings exist) */}
       {!loading && bookings.length > 0 && (
-        <div className="flex items-center gap-2 border-b border-slate-200 pb-2">
+        <div className="flex items-center gap-2 border-b border-slate-200 pb-3">
           <button
             onClick={() => setStatusFilter('ALL')}
-            className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+            className={`px-4 py-2 rounded-2xl text-xs font-bold transition-all flex items-center gap-2 ${
               statusFilter === 'ALL'
-                ? 'bg-slate-900 text-white shadow-sm'
-                : 'text-slate-600 hover:bg-slate-100'
+                ? 'bg-gradient-to-r from-sky-600 to-indigo-600 text-white shadow-md shadow-sky-600/25 ring-2 ring-sky-400/20'
+                : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200/80 shadow-2xs'
             }`}
           >
             <span>All Bookings</span>
-            <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-white/20">
+            <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-bold ${statusFilter === 'ALL' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-700'}`}>
               {bookings.length}
             </span>
           </button>
 
           <button
             onClick={() => setStatusFilter('CONFIRMED')}
-            className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+            className={`px-4 py-2 rounded-2xl text-xs font-bold transition-all flex items-center gap-2 ${
               statusFilter === 'CONFIRMED'
-                ? 'bg-emerald-600 text-white shadow-sm'
-                : 'text-slate-600 hover:bg-slate-100'
+                ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/25 ring-2 ring-emerald-400/20'
+                : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200/80 shadow-2xs'
             }`}
           >
             <span>Confirmed</span>
-            <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-emerald-100 text-emerald-800">
+            <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-bold ${statusFilter === 'CONFIRMED' ? 'bg-white/20 text-white' : 'bg-emerald-50 text-emerald-700'}`}>
               {confirmedCount}
             </span>
           </button>
 
           <button
             onClick={() => setStatusFilter('CANCELLED')}
-            className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+            className={`px-4 py-2 rounded-2xl text-xs font-bold transition-all flex items-center gap-2 ${
               statusFilter === 'CANCELLED'
-                ? 'bg-rose-600 text-white shadow-sm'
-                : 'text-slate-600 hover:bg-slate-100'
+                ? 'bg-rose-600 text-white shadow-md shadow-rose-600/25 ring-2 ring-rose-400/20'
+                : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200/80 shadow-2xs'
             }`}
           >
             <span>Cancelled</span>
-            <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-rose-100 text-rose-800">
+            <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono font-bold ${statusFilter === 'CANCELLED' ? 'bg-white/20 text-white' : 'bg-rose-50 text-rose-700'}`}>
               {cancelledCount}
             </span>
           </button>
@@ -261,16 +301,16 @@ const MyBookings = () => {
             return (
               <div
                 key={booking._id}
-                className={`bg-white rounded-3xl border transition-all duration-300 overflow-hidden shadow-sm hover:shadow-md ${
+                className={`bg-white/95 backdrop-blur-xl rounded-3xl border transition-all duration-300 overflow-hidden shadow-md shadow-slate-200/40 hover:shadow-xl ${
                   isFresh
                     ? 'border-emerald-300 ring-2 ring-emerald-400/20 bg-emerald-50/10'
                     : isCancelled
-                    ? 'border-slate-200 opacity-80 bg-slate-50/50'
-                    : 'border-slate-200'
+                    ? 'border-slate-200/80 opacity-80 bg-slate-50/50'
+                    : 'border-slate-200/80'
                 }`}
               >
                 {/* Booking Header Bar */}
-                <div className="px-6 py-4 bg-slate-50 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="px-6 py-4 bg-slate-50/80 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div className="flex items-center gap-3">
                     <div>
                       <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
@@ -353,22 +393,44 @@ const MyBookings = () => {
                       </div>
                     </div>
 
-                    {/* Cancellation Action Button */}
-                    {!isCancelled ? (
+                    {/* Action Buttons: Download Ticket (PDF) & Cancellation */}
+                    <div className="flex flex-wrap items-center gap-2 self-start">
                       <button
                         type="button"
-                        onClick={() => handleCancelClick(booking)}
-                        disabled={actionLoading}
-                        className="self-start px-3.5 py-2 text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-xl transition flex items-center gap-1.5 active:scale-95 disabled:opacity-50"
+                        onClick={() => handleDownloadTicket(booking)}
+                        disabled={downloadingId === booking._id}
+                        className="px-3.5 py-2 text-xs font-bold text-sky-700 bg-sky-50 hover:bg-sky-100 border border-sky-200 rounded-xl transition-all shadow-2xs flex items-center gap-1.5 active:scale-95 disabled:opacity-50"
+                        title="Download official admission ticket as PDF"
                       >
-                        <XCircle className="w-3.5 h-3.5" />
-                        <span>Cancel Booking</span>
+                        {downloadingId === booking._id ? (
+                          <>
+                            <span className="w-3.5 h-3.5 border-2 border-sky-600 border-t-transparent rounded-full animate-spin" />
+                            <span>Generating PDF...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Download className="w-3.5 h-3.5 text-sky-600" />
+                            <span>Download Ticket (PDF)</span>
+                          </>
+                        )}
                       </button>
-                    ) : (
-                      <span className="text-xs font-medium text-slate-400 italic">
-                        Cancelled on {booking.cancelledAt ? formatDate(booking.cancelledAt) : 'Archived'}
-                      </span>
-                    )}
+
+                      {!isCancelled ? (
+                        <button
+                          type="button"
+                          onClick={() => handleCancelClick(booking)}
+                          disabled={actionLoading}
+                          className="px-3.5 py-2 text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-xl transition flex items-center gap-1.5 active:scale-95 disabled:opacity-50"
+                        >
+                          <XCircle className="w-3.5 h-3.5" />
+                          <span>Cancel Booking</span>
+                        </button>
+                      ) : (
+                        <span className="text-xs font-medium text-slate-400 italic">
+                          Cancelled on {booking.cancelledAt ? formatDate(booking.cancelledAt) : 'Archived'}
+                        </span>
+                      )}
+                    </div>
                   </div>
 
                   {/* Metadata grid */}

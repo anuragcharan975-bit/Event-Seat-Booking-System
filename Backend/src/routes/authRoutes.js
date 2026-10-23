@@ -5,6 +5,7 @@ const {
   validateRegister,
   validateLogin,
   validateSendOtp,
+  validateVerifyOtp,
   validateChangePassword
 } = require('../validators/authValidators');
 const validateRequest = require('../middlewares/validateRequest');
@@ -17,7 +18,7 @@ router.put('/profile', requireAuth, authController.updateProfile);
 
 // OTP & Password Management endpoints
 router.post('/send-otp', validateSendOtp, validateRequest, authController.sendOtp);
-router.post('/verify-otp', authController.verifyOtp);
+router.post('/verify-otp', validateVerifyOtp, validateRequest, authController.verifyOtp);
 router.post('/change-password', validateChangePassword, validateRequest, authController.changePassword);
 
 module.exports = router;

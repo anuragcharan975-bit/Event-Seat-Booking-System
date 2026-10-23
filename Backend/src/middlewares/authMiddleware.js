@@ -37,6 +37,7 @@ const requireAuth = async (req, res, next) => {
 
     // Attach decoded user info to request
     req.user = {
+      _id: decoded.id,
       id: decoded.id,
       email: decoded.email,
       name: decoded.name,
@@ -76,10 +77,7 @@ const requireAdmin = async (req, res, next) => {
     if (dbUser) {
       const isPrivileged =
         dbUser.role === 'admin' ||
-        dbUser.email === 'admin909@gmail.com' ||
-        dbUser.email === 'admin@shopnest.com' ||
-        dbUser.email.toLowerCase().startsWith('admin') ||
-        dbUser.email.toLowerCase().includes('anurag');
+        dbUser.email === 'admin909@gmail.com';
 
       if (isPrivileged) {
         if (dbUser.role !== 'admin') {

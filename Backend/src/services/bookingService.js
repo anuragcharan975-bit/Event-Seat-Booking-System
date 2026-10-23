@@ -104,6 +104,31 @@ const confirmBooking = async ({ holdId, userId, clockNow = null }) => {
     throw error;
   }
 
+  // Verify user maximum seat limit (4 seats per user per event)
+  const existingBookings = await Booking.find({
+    userId: hold.userId,
+    eventId: hold.eventId,
+    status: 'CONFIRMED',
+    holdId: { $ne: hold._id }
+  });
+  const alreadyBookedSeatsCount = existingBookings.reduce(
+    (sum, b) => sum + (b.seatIds ? b.seatIds.length : 0),
+    0
+  );
+
+  if (alreadyBookedSeatsCount >= 4) {
+    const error = new Error('You already booked your max seats for this event. Maximum limit is 4 seats per event.');
+    error.statusCode = 400;
+    throw error;
+  }
+
+  if (alreadyBookedSeatsCount + hold.seatIds.length > 4) {
+    const remaining = 4 - alreadyBookedSeatsCount;
+    const error = new Error(`You can only book up to ${remaining} more seat(s) for this event. Maximum limit is 4 seats per event.`);
+    error.statusCode = 400;
+    throw error;
+  }
+
   // Calculate authoritative amount on the server
   const trustedAmount = event.pricePerSeat * hold.seatIds.length;
   const bookingReference = generateBookingReference();
@@ -520,6 +545,32 @@ const createDirectBooking = async ({ userId, eventId, seatIds, clockNow = null }
     const error = new Error(`Event Time Over! Booking time has ended. This event closed at ${formattedCloseTime}.`);
     error.statusCode = 400;
     throw error;
+  }
+
+  // 5b. Verify user maximum seat limit (4 seats per user per event)
+  if (userId) {
+    const existingBookings = await Booking.find({
+      userId,
+      eventId: event._id,
+      status: 'CONFIRMED'
+    });
+    const alreadyBookedSeatsCount = existingBookings.reduce(
+      (sum, b) => sum + (b.seatIds ? b.seatIds.length : 0),
+      0
+    );
+
+    if (alreadyBookedSeatsCount >= 4) {
+      const error = new Error('You already booked your max seats for this event. Maximum limit is 4 seats per event.');
+      error.statusCode = 400;
+      throw error;
+    }
+
+    if (alreadyBookedSeatsCount + seatIds.length > 4) {
+      const remaining = 4 - alreadyBookedSeatsCount;
+      const error = new Error(`You can only book up to ${remaining} more seat(s) for this event. Maximum limit is 4 seats per event.`);
+      error.statusCode = 400;
+      throw error;
+    }
   }
 
   // 6. Verify all requested seats exist and belong to this event

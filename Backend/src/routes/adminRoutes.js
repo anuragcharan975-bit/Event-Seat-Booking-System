@@ -26,4 +26,8 @@ router.delete('/users/:userId', adminController.deleteUser);
 router.get('/bookings', adminController.getBookings);
 router.post('/bookings/:bookingId/cancel', adminController.cancelBooking);
 
+// Reviews management endpoints
+router.get('/reviews', adminController.getReviews);
+router.delete('/reviews/:reviewId', adminController.deleteReview);
+
 module.exports = router;
