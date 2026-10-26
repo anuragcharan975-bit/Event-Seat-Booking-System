@@ -28,12 +28,14 @@ import {
   Tag,
   Gamepad2,
   Activity,
-  Zap
+  Zap,
+  Car
 } from 'lucide-react';
 
 // Required categories list with icons
 const REQUIRED_CATEGORIES = [
   { id: 'all', label: 'All Events', icon: Sparkles },
+  { id: 'Car', label: 'Car & Auto', icon: Car },
   { id: 'Game', label: 'Game', icon: Gamepad2 },
   { id: 'Music', label: 'Music', icon: Music },
   { id: 'Dance', label: 'Dance', icon: Flame },
@@ -58,6 +60,7 @@ const Events = () => {
       const match = REQUIRED_CATEGORIES.find(
         (c) =>
           c.id.toLowerCase() === routeCategory.toLowerCase() ||
+          (c.id === 'Car' && (routeCategory.toLowerCase() === 'cars' || routeCategory.toLowerCase() === 'car-event' || routeCategory.toLowerCase() === 'automotive')) ||
           (c.id === 'Theatre' && routeCategory.toLowerCase() === 'theater') ||
           (c.id === 'Workshops' && (routeCategory.toLowerCase() === 'workspace' || routeCategory.toLowerCase() === 'workspaces'))
       );
@@ -97,6 +100,7 @@ const Events = () => {
         const match = REQUIRED_CATEGORIES.find(
           (c) =>
             c.id.toLowerCase() === raw.toLowerCase() ||
+            (c.id === 'Car' && (raw.toLowerCase() === 'cars' || raw.toLowerCase() === 'car-event' || raw.toLowerCase() === 'automotive')) ||
             (c.id === 'Theatre' && raw.toLowerCase() === 'theater') ||
             (c.id === 'Workshops' && (raw.toLowerCase() === 'workspace' || raw.toLowerCase() === 'workspaces'))
         );

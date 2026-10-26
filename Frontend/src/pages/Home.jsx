@@ -21,10 +21,21 @@ import {
   Compass,
   CheckCircle2,
   ChevronRight,
-  Gamepad2
+  Gamepad2,
+  Car
 } from 'lucide-react';
 
 const CATEGORIES = [
+  {
+    id: 'car',
+    name: 'Car & Auto Shows',
+    desc: 'Formula 1 racing, supercar showcases, drift battles & auto expos',
+    icon: Car,
+    color: 'from-red-600 to-amber-600',
+    bg: 'bg-red-50',
+    text: 'text-red-800',
+    border: 'border-red-200'
+  },
   {
     id: 'game',
     name: 'Game & Esports',

@@ -202,6 +202,39 @@ const seedInitialDataIfNeeded = async () => {
         endTime: new Date(now.getTime() + 19 * 24 * 60 * 60 * 1000 + 4 * 60 * 60 * 1000),
         pricePerSeat: 450,
         totalSeats: 40
+      },
+      {
+        title: 'Formula 1 Grand Prix & Supercar Showcase 2026',
+        category: 'Car',
+        imageUrl: 'https://images.unsplash.com/photo-1568605117036-5fe5e7bab0b7?auto=format&fit=crop&w=800&q=80',
+        description: 'Experience the thunderous roar of Formula 1 machinery and elite hypercars. Featuring live high-speed hot laps, Ferrari and Lamborghini paddock showcases, pit lane walks, and precision drift demonstrations.',
+        venue: 'Buddh International Circuit, Main Grandstand Track, Greater Noida',
+        startTime: new Date(now.getTime() + 9 * 24 * 60 * 60 * 1000),
+        endTime: new Date(now.getTime() + 9 * 24 * 60 * 60 * 1000 + 6 * 60 * 60 * 1000),
+        pricePerSeat: 1999,
+        totalSeats: 40
+      },
+      {
+        title: 'Auto Expo & Supercar Drifting Championship',
+        category: 'Car',
+        imageUrl: 'https://images.unsplash.com/photo-1503376780353-7e6692767b70?auto=format&fit=crop&w=800&q=80',
+        description: 'Witness high-speed drift battles, customized tuner car showcases, electric supercar debuts, and live burnout arena challenges with international stunt drivers.',
+        venue: 'India Expo Mart, Auto Arena Hall 5, Greater Noida',
+        startTime: new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000),
+        endTime: new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000 + 5 * 60 * 60 * 1000),
+        pricePerSeat: 899,
+        totalSeats: 40
+      },
+      {
+        title: 'Vintage & Exotic Classic Car Concourse',
+        category: 'Car',
+        imageUrl: 'https://images.unsplash.com/photo-1552519507-da3b142c6e3d?auto=format&fit=crop&w=800&q=80',
+        description: 'Step into automotive history featuring over 100 immaculate vintage classics, royal Rolls-Royce and Jaguar roadsters, restoration workshops, and exclusive collector parades.',
+        venue: 'Heritage Palace Grounds, Royal Automobile Pavilion, New Delhi',
+        startTime: new Date(now.getTime() + 20 * 24 * 60 * 60 * 1000),
+        endTime: new Date(now.getTime() + 20 * 24 * 60 * 60 * 1000 + 4 * 60 * 60 * 1000),
+        pricePerSeat: 650,
+        totalSeats: 40
       }
     ];
 

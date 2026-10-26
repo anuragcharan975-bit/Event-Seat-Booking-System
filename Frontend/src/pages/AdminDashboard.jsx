@@ -40,7 +40,8 @@ import {
   ArrowLeft,
   Filter,
   Star,
-  MessageSquare
+  MessageSquare,
+  Car
 } from 'lucide-react';
 import adminApi from '../api/adminApi';
 import Loading from '../components/Loading';
@@ -51,6 +52,16 @@ import { useAuth } from '../context/AuthContext';
 
 // Category presets with matched high-quality Unsplash image suggestions & default timings
 const CATEGORY_DEFINITIONS = [
+  {
+    name: 'Car',
+    aliases: ['Car Event', 'Car Events', 'Cars', 'Automotive', 'Auto Show', 'Motorsport', 'Racing', 'Supercar'],
+    keywords: ['car', 'cars', 'supercar', 'racing', 'f1', 'formula 1', 'formula', 'drift', 'drag', 'auto expo', 'motorsport', 'rally', 'vehicle', 'automotive', 'auto show'],
+    defaultImage: 'https://images.unsplash.com/photo-1503376780353-7e6692767b70?auto=format&fit=crop&w=800&q=80',
+    color: 'bg-red-50 text-red-700 border-red-200',
+    defaultStartTime: '10:00',
+    defaultEndTime: '18:00',
+    timingLabel: '10:00 AM – 06:00 PM'
+  },
   {
     name: 'Spa',
     keywords: ['spa', 'wellness', 'massage', 'retreat', 'ayurvedic', 'ayurveda', 'detox', 'herbal', 'aromatherapy', 'therapy', 'sauna', 'rejuvenation'],
@@ -147,6 +158,7 @@ const getCategoryDefinition = (catName) => {
   );
   if (direct) return direct;
   if (clean.includes('spa')) return CATEGORY_DEFINITIONS.find((c) => c.name === 'Spa');
+  if (clean.includes('car') || clean.includes('auto') || clean.includes('racing') || clean.includes('drift')) return CATEGORY_DEFINITIONS.find((c) => c.name === 'Car');
   if (clean.includes('game')) return CATEGORY_DEFINITIONS.find((c) => c.name === 'Game');
   if (clean.includes('dance')) return CATEGORY_DEFINITIONS.find((c) => c.name === 'Dance');
   if (clean.includes('music')) return CATEGORY_DEFINITIONS.find((c) => c.name === 'Music');

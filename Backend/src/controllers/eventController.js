@@ -82,6 +82,8 @@ const getEvents = asyncHandler(async (req, res) => {
         searchOrConditions.push({ category: /comedy/i });
       } else if (/^(games?|gaming|esports?)$/i.test(token)) {
         searchOrConditions.push({ category: /^(game|gaming)$/i });
+      } else if (/^(cars?|automotive|supercars?|motorsports?|racing)$/i.test(token)) {
+        searchOrConditions.push({ category: /^(car|cars|automotive)$/i });
       }
     }
 
@@ -121,10 +123,19 @@ const getEvents = asyncHandler(async (req, res) => {
                 /^\s*Theat(re|er)\s*$/i,
                 /^\s*Sports?\s*$/i,
                 /^\s*Workshops?\s*$/i,
-                /^\s*Spa\s*$/i
+                /^\s*Spa\s*$/i,
+                /^\s*Games?\s*$/i,
+                /^\s*Cars?\s*$/i
               ]
             }
           }
+        ]
+      });
+    } else if (/^cars?(\s*events?)?$/i.test(rawCat)) {
+      andConditions.push({
+        $or: [
+          { category: new RegExp('^\\s*Cars?\\s*$', 'i') },
+          { categorySlug: { $in: ['car', 'cars', 'car-event', 'car-events', 'automotive'] } }
         ]
       });
     } else if (/^(workshops?|workspaces?)$/i.test(rawCat)) {

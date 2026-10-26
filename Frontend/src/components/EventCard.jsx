@@ -63,6 +63,13 @@ const getCategoryStyles = (category = '') => {
       dot: 'bg-teal-500'
     };
   }
+  if (cat.includes('car') || cat.includes('auto') || cat.includes('racing') || cat.includes('drift') || cat.includes('f1')) {
+    return {
+      badge: 'bg-red-50 text-red-800 border-red-200',
+      headerGradient: 'from-red-600 to-amber-600',
+      dot: 'bg-red-600'
+    };
+  }
   return {
     badge: 'bg-slate-100 text-slate-700 border-slate-200',
     headerGradient: 'from-slate-600 to-slate-800',
@@ -71,6 +78,8 @@ const getCategoryStyles = (category = '') => {
 };
 
 const CATEGORY_IMAGES = {
+  car: 'https://images.unsplash.com/photo-1503376780353-7e6692767b70?auto=format&fit=crop&w=800&q=80',
+  cars: 'https://images.unsplash.com/photo-1503376780353-7e6692767b70?auto=format&fit=crop&w=800&q=80',
   game: 'https://images.unsplash.com/photo-1542751371-adc38448a05e?auto=format&fit=crop&w=800&q=80',
   gaming: 'https://images.unsplash.com/photo-1542751371-adc38448a05e?auto=format&fit=crop&w=800&q=80',
   music: 'https://images.unsplash.com/photo-1511192336575-5a79af67a629?auto=format&fit=crop&w=800&q=80',
