@@ -28,6 +28,7 @@ The system is engineered specifically to solve high-concurrency ticket reservati
 18. [Beginner-Friendly Code Explanations](#beginner-friendly-code-explanations)
 19. [Troubleshooting Guide](#troubleshooting-guide)
 20. [Known Limitations & Architecture Decisions](#known-limitations--architecture-decisions)
+21. [Production Deployment Guide (Vercel & Render)](#production-deployment-guide-vercel--render)
 
 ---
 
@@ -891,3 +892,144 @@ Here is a guide to the key files for interns and junior developers:
    Set to 120 seconds by default as required. Can be configured via the `HOLD_DURATION_SECONDS` environment variable.
 3. **No External Payment Gateway**:
    In this architecture, booking confirmation simulates the payment capture phase atomically. Integration with Stripe/Razorpay would insert a webhook before marking the hold status `CONFIRMED`.
+
+---
+
+## 21. Production Deployment Guide (Vercel & Render)
+
+This section provides complete, step-by-step instructions for deploying the **Event Seat Booking System** to production:
+- **Backend**: Hosted on [Render](https://render.com) (Node.js Web Service)
+- **Frontend**: Hosted on [Vercel](https://vercel.com) (Vite React SPA)
+- **Database**: Hosted on [MongoDB Atlas](https://www.mongodb.com/atlas) (Free M0 Replica Set Cluster)
+
+---
+
+### Step 1: Set Up MongoDB Atlas (Production Database)
+
+Because Render Web Services are stateless, production data cannot be stored on `localhost:27017`. MongoDB Atlas provides a free cloud-hosted replica set with native multi-document ACID transaction support.
+
+1. **Sign Up / Log In**:
+   - Go to [MongoDB Atlas](https://www.mongodb.com/cloud/atlas) and log in or create a free account.
+2. **Create a Free Cluster**:
+   - Click **Create Deployment** > Select **M0 Free Tier** > Choose a Cloud Provider & Region close to your users (e.g., AWS / Mumbai or Frankfurt) > Click **Create**.
+3. **Set Up Database User Credentials**:
+   - Go to **Security** > **Database Access** > Click **Add New Database User**.
+   - Authentication Method: **Password**.
+   - Username: e.g., `event_booking_admin`
+   - Password: Generate a secure password (store this safely!).
+   - Database User Privileges: **Read and write to any database** > Click **Add User**.
+4. **Configure Network Access (IP Whitelist)**:
+   - Go to **Security** > **Network Access** > Click **Add IP Address**.
+   - Click **Allow Access from Anywhere** (`0.0.0.0/0`) — this allows Render's cloud servers to connect to the database.
+   - Click **Confirm**.
+5. **Get MongoDB Connection String**:
+   - Go to **Deployments** > **Database** > Click **Connect** on your cluster.
+   - Select **Drivers** (Node.js).
+   - Copy the connection string format:
+     ```text
+     mongodb+srv://<username>:<password>@cluster0.xxxxx.mongodb.net/event_booking?retryWrites=true&w=majority
+     ```
+   - Replace `<username>` and `<password>` with your database user credentials, and set database name to `event_booking`.
+
+---
+
+### Step 2: Deploy Backend to Render
+
+1. **Push Your Code to GitHub**:
+   - Make sure your latest repository changes are committed and pushed to GitHub (e.g., branch `main`).
+2. **Create a New Web Service on Render**:
+   - Log into [Render Dashboard](https://dashboard.render.com/).
+   - Click **New +** > Select **Web Service**.
+   - Select **Build and deploy from a Git repository** > Click **Next**.
+   - Choose your GitHub repository: `Event-Seat-Booking-System`.
+3. **Configure Service Settings**:
+   - **Name**: `event-seat-booking-backend` (or your preferred name)
+   - **Region**: Choose a region closest to your MongoDB Atlas cluster (e.g., Singapore, Frankfurt, or Oregon).
+   - **Branch**: `main`
+   - **Root Directory**: `Backend` *(Crucial: sets Render to execute from the backend folder)*
+   - **Runtime**: `Node`
+   - **Build Command**: `npm install`
+   - **Start Command**: `npm start`
+   - **Instance Type**: `Free`
+4. **Add Environment Variables on Render**:
+   - Scroll down to the **Environment Variables** section and add the following keys:
+     | Key | Recommended Value / Description |
+     | :--- | :--- |
+     | `NODE_ENV` | `production` |
+     | `PORT` | `5000` *(Render sets this automatically, but you can declare 5000)* |
+     | `MONGODB_URI` | `mongodb+srv://<username>:<password>@cluster0.xxxxx.mongodb.net/event_booking?retryWrites=true&w=majority` |
+     | `JWT_SECRET` | A secure random 64-character string (e.g. run `openssl rand -hex 32` or type a long secret) |
+     | `FRONTEND_URL` | `https://your-frontend.vercel.app` *(You can set this to `*` or leave temporary while creating Vercel app, then update once Vercel assigns your URL)* |
+     | `HOLD_DURATION_SECONDS` | `120` |
+     | `EMAIL_USER` | *(Optional)* Your Gmail address for OTP password resets |
+     | `EMAIL_PASS` | *(Optional)* Gmail App Password (16 characters) |
+     | `SYSTEM_CONSOLE_PREFIX` | `/system-console-r6t8` |
+5. **Configure Health Check Path**:
+   - Under **Advanced**, find **Health Check Path** and set it to:
+     ```text
+     /api/health
+     ```
+6. **Click "Create Web Service"**:
+   - Render will build the service, run `npm install`, and launch `npm start`.
+   - Monitor the deploy logs. You should see:
+     ```
+     Server running in production mode on port 10000
+     MongoDB connected successfully!
+     Topology: ReplicaSet (ACID transactions enabled)
+     ```
+   - Copy your Render backend service URL:
+     `https://event-seat-booking-backend.onrender.com`
+
+---
+
+### Step 3: Deploy Frontend to Vercel
+
+1. **Log in to Vercel**:
+   - Visit [Vercel Dashboard](https://vercel.com/) and click **Add New...** > **Project**.
+2. **Import Git Repository**:
+   - Select your repository `Event-Seat-Booking-System`.
+3. **Configure Project Settings**:
+   - **Project Name**: `event-seat-booking-system`
+   - **Framework Preset**: `Vite`
+   - **Root Directory**: Click **Edit** and select `Frontend`
+   - **Build and Output Settings**:
+     - Build Command: `npm run build` (default)
+     - Output Directory: `dist` (default)
+     - Install Command: `npm install` (default)
+4. **Set Environment Variables on Vercel**:
+   - Expand the **Environment Variables** section and add:
+     | Key | Value | Notes |
+     | :--- | :--- | :--- |
+     | `VITE_API_URL` | `https://event-seat-booking-backend.onrender.com/api` | Your Render backend URL ending in `/api` |
+5. **Click "Deploy"**:
+   - Vercel will install dependencies and execute `vite build`.
+   - The included `Frontend/vercel.json` automatically configures SPA routing rules (`"source": "/(.*)", "destination": "/index.html"`), ensuring page refreshes on sub-routes like `/events`, `/my-bookings`, or `/system-console-r6t8` never 404.
+6. **Obtain Live Frontend Domain**:
+   - Once deployment completes, Vercel gives you your production URL:
+     `https://event-seat-booking-system.vercel.app`
+
+---
+
+### Step 4: Link Frontend & Backend (Final CORS Verification)
+
+1. Return to the **Render Dashboard** > Select your backend service > **Environment**.
+2. Verify or update `FRONTEND_URL`:
+   ```text
+   FRONTEND_URL=https://event-seat-booking-system.vercel.app
+   ```
+   *(Note: The backend CORS handler supports comma-separated domains and automatically trims any accidental trailing slashes).*
+3. Render will automatically redeploy to apply the updated environment variable.
+
+---
+
+### Step 5: Post-Deployment Smoke Test Checklist
+
+Once both services are deployed, test the following flow in your production browser:
+- [ ] **Health Endpoint**: Open `https://your-backend.onrender.com/api/health` in your browser. Verify it returns `{"status":"ok","database":"connected"}`.
+- [ ] **User Registration / Login**: Open your Vercel URL, click **Register**, create a new account, and check that login tokens persist.
+- [ ] **Event Catalog & Seat Map**: Browse events, select an event, and view the interactive seat map.
+- [ ] **Seat Holding & Countdown**: Click 1–4 seats and click **Hold Seats**. Check that the 120-second countdown synchronizes with the server.
+- [ ] **Booking Confirmation**: Confirm the booking and ensure the success page displays your booking details.
+- [ ] **PDF Ticket Download**: Click **Download Ticket (PDF)** on your booking confirmation or **My Bookings** page and verify the downloaded PDF ticket.
+- [ ] **SPA Route Refresh**: Refresh the page on `/my-bookings` or `/events`. Ensure it loads without a 404 error.
+- [ ] **Admin Portal**: Access your secure admin console at `/system-console-r6t8` and verify car event addition and event management.

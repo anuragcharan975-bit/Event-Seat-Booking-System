@@ -8,6 +8,9 @@
     "build": "vite build",
     "preview": "vite preview"
   },
+  "allowScripts": {
+    "esbuild": true
+  },
   "dependencies": {
     "axios": "^1.7.2",
     "jspdf": "^4.2.1",

@@ -15,23 +15,50 @@ const { notFoundHandler, errorHandler } = require('./middlewares/errorMiddleware
 
 const app = express();
 
-// Middlewares
-const allowedOrigins = [
-  process.env.FRONTEND_URL || 'http://localhost:5173',
-  'http://localhost:5173',
-  'http://127.0.0.1:5173'
-];
+// Parse and normalize allowed frontend origins (supporting comma-separated list and trailing slash removal)
+const parseAllowedOrigins = () => {
+  const envOrigins = [process.env.FRONTEND_URL, process.env.CLIENT_URL]
+    .filter(Boolean)
+    .flatMap((val) => val.split(','))
+    .map((o) => o.trim().replace(/\/+$/, ''))
+    .filter(Boolean);
+
+  const localDefaults = [
+    'http://localhost:5173',
+    'http://127.0.0.1:5173',
+    'http://localhost:3000',
+    'http://localhost:4173'
+  ];
+
+  return Array.from(new Set([...envOrigins, ...localDefaults]));
+};
 
 app.use(
   cors({
     origin: function (origin, callback) {
-      // Allow requests with no origin (like mobile apps, curl, postman)
-      if (!origin || allowedOrigins.includes(origin)) {
+      // Allow requests with no origin (like mobile apps, curl, postman, health checks)
+      if (!origin) {
         return callback(null, true);
       }
-      return callback(null, true); // Permissive in local development
+
+      const cleanOrigin = origin.trim().replace(/\/+$/, '');
+      const allowedList = parseAllowedOrigins();
+
+      // Check explicit allowed origin list or if development mode
+      if (allowedList.includes(cleanOrigin) || process.env.NODE_ENV !== 'production') {
+        return callback(null, true);
+      }
+
+      // Automatically allow Vercel deployment & preview domains for this application
+      if (cleanOrigin.endsWith('.vercel.app')) {
+        return callback(null, true);
+      }
+
+      return callback(new Error(`CORS blocked for unauthorized origin: ${origin}`));
     },
-    credentials: true
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
   })
 );
 
