@@ -243,12 +243,12 @@ const Login = () => {
       </div>
 
       {/* Main Login Card */}
-      <div className="relative z-10 w-full max-w-md bg-white/95 backdrop-blur-md rounded-3xl shadow-2xl shadow-black/60 border border-white/60 p-7 sm:p-9 space-y-6">
+      <div className="relative z-10 w-full max-w-md bg-white/95 backdrop-blur-2xl rounded-3xl shadow-2xl shadow-black/60 border border-white/60 p-7 sm:p-9 space-y-6">
         <div className="text-center">
-          <div className="inline-flex p-3.5 bg-gradient-to-tr from-sky-600 to-indigo-600 text-white rounded-2xl mb-3 shadow-lg shadow-sky-600/30">
+          <div className="inline-flex p-3.5 bg-gradient-to-tr from-sky-600 via-indigo-600 to-purple-600 text-white rounded-2xl mb-3 shadow-lg shadow-sky-600/30">
             <Ticket className="w-8 h-8" />
           </div>
-          <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">Welcome Back</h2>
+          <h2 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">Welcome Back</h2>
           <p className="text-xs sm:text-sm text-slate-500 mt-1">Sign in to your account to book seats</p>
         </div>
 
@@ -266,14 +266,17 @@ const Login = () => {
             <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
               Email Address
             </label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="you@example.com"
-              required
-              className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white/90 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent transition shadow-xs"
-            />
+            <div className="relative">
+              <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="you@example.com"
+                required
+                className="w-full pl-10 pr-4 py-3 rounded-2xl border border-slate-200/90 bg-white/90 text-sm focus:outline-none focus:ring-4 focus:ring-sky-500/10 focus:border-sky-500 transition shadow-2xs"
+              />
+            </div>
           </div>
 
           <div>
@@ -289,21 +292,24 @@ const Login = () => {
                 Forgot Password?
               </Link>
             </div>
-            <input
-              type="password"
-              maxLength={6}
-              value={password}
-              onChange={(e) => setPassword(e.target.value.slice(0, 6))}
-              placeholder="Max 6 characters"
-              required
-              className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white/90 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent transition shadow-xs"
-            />
+            <div className="relative">
+              <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <input
+                type="password"
+                maxLength={6}
+                value={password}
+                onChange={(e) => setPassword(e.target.value.slice(0, 6))}
+                placeholder="Max 6 characters"
+                required
+                className="w-full pl-10 pr-4 py-3 rounded-2xl border border-slate-200/90 bg-white/90 text-sm focus:outline-none focus:ring-4 focus:ring-sky-500/10 focus:border-sky-500 transition shadow-2xs"
+              />
+            </div>
           </div>
 
           <button
             type="submit"
             disabled={loading}
-            className="w-full mt-2 py-3.5 px-4 rounded-xl text-sm font-bold text-white bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 shadow-lg shadow-sky-600/30 transition-all flex items-center justify-center gap-2 disabled:opacity-50 active:scale-[0.99]"
+            className="w-full mt-2 py-3.5 px-4 rounded-2xl text-sm font-black text-white bg-gradient-to-r from-sky-600 via-indigo-600 to-purple-600 hover:from-sky-500 hover:via-indigo-500 hover:to-purple-500 shadow-lg shadow-sky-600/30 transition-all flex items-center justify-center gap-2 disabled:opacity-50 active:scale-[0.98]"
           >
             {loading ? (
               <span className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />

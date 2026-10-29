@@ -22,7 +22,8 @@ import {
   CheckCircle2,
   ChevronRight,
   Gamepad2,
-  Car
+  Car,
+  Heart
 } from 'lucide-react';
 
 const CATEGORIES = [
@@ -153,11 +154,12 @@ const Home = () => {
   return (
     <div className="space-y-16 animate-fadeIn pb-12">
       {/* 1. Hero Section */}
-      <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-slate-950 via-slate-900 to-sky-950 text-white p-8 sm:p-14 lg:p-16 shadow-2xl border border-sky-900/40">
+      <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-slate-950 via-[#0B0F19] to-[#0A1026] text-white p-8 sm:p-14 lg:p-16 shadow-2xl border border-sky-500/20">
         <div className="relative z-10 max-w-3xl">
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-sky-500/15 text-sky-300 text-xs font-bold mb-6 border border-sky-500/30 backdrop-blur-md shadow-inner">
-            <Sparkles className="w-4 h-4 text-sky-400" />
-            <span>High-Concurrency Live Ticket Engine</span>
+          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-sky-500/15 text-sky-300 text-xs font-bold mb-6 border border-sky-400/30 backdrop-blur-md shadow-inner">
+            <span className="w-2 h-2 rounded-full bg-sky-400 animate-ping" />
+            <Sparkles className="w-3.5 h-3.5 text-sky-400" />
+            <span>High-Concurrency Live Ticket Engine • Zero Overbooking Guarantee</span>
           </div>
 
           <h1 className="text-3xl sm:text-5xl lg:text-6xl font-black tracking-tight mb-6 leading-[1.12]">
@@ -168,13 +170,13 @@ const Home = () => {
           </h1>
 
           <p className="text-slate-300 text-sm sm:text-base lg:text-lg leading-relaxed max-w-2xl mb-8">
-            Experience seamless ticket booking with our interactive seat grid, real-time 120-second atomic hold locks, and guaranteed zero double-bookings.
+            Experience next-generation ticket booking with our real-time interactive seat grid, 120-second atomic hold locks, 40% Couple Date Passes, and instant scannable E-Tickets.
           </p>
 
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4">
             <Link
               to="/events"
-              className="inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-2xl text-sm sm:text-base font-bold text-white bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 shadow-lg shadow-sky-600/30 hover:shadow-sky-600/50 hover:scale-[1.02] active:scale-98 transition-all"
+              className="inline-flex items-center justify-center gap-2.5 px-7 py-4 rounded-2xl text-sm sm:text-base font-black text-white bg-gradient-to-r from-sky-500 via-indigo-600 to-purple-600 hover:from-sky-400 hover:via-indigo-500 hover:to-purple-500 shadow-lg shadow-sky-500/25 hover:shadow-sky-500/40 hover:scale-[1.02] active:scale-98 transition-all duration-200"
             >
               <span>Explore All Events</span>
               <ArrowRight className="w-4 h-4" />
@@ -182,51 +184,51 @@ const Home = () => {
 
             <a
               href="#categories"
-              className="inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-2xl text-sm sm:text-base font-semibold text-slate-200 bg-white/10 hover:bg-white/15 border border-white/20 backdrop-blur-md transition-all hover:scale-[1.02]"
+              className="inline-flex items-center justify-center gap-2 px-6 py-4 rounded-2xl text-sm sm:text-base font-bold text-slate-200 bg-white/10 hover:bg-white/15 border border-white/20 backdrop-blur-md transition-all hover:scale-[1.02]"
             >
               <span>Browse Categories</span>
             </a>
           </div>
 
           {/* Quick Stats Grid */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-12 pt-8 border-t border-white/10 text-xs text-slate-300">
-            <div className="flex items-center gap-2.5 p-2 rounded-xl bg-white/5 border border-white/5">
-              <div className="p-2 rounded-lg bg-sky-500/20 text-sky-400">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5 mt-12 pt-8 border-t border-white/10 text-xs text-slate-300">
+            <div className="flex items-center gap-2.5 p-3 rounded-2xl bg-white/[0.04] border border-white/[0.08] hover:border-white/20 hover:bg-white/[0.07] transition-all">
+              <div className="p-2.5 rounded-xl bg-sky-500/20 text-sky-400 border border-sky-400/20">
                 <Clock className="w-4 h-4 shrink-0" />
               </div>
               <div>
-                <p className="font-bold text-white text-sm">120s Hold</p>
+                <p className="font-extrabold text-white text-sm">120s Hold</p>
                 <p className="text-[11px] text-slate-400">Atomic Seat Lock</p>
               </div>
             </div>
 
-            <div className="flex items-center gap-2.5 p-2 rounded-xl bg-white/5 border border-white/5">
-              <div className="p-2 rounded-lg bg-emerald-500/20 text-emerald-400">
-                <ShieldCheck className="w-4 h-4 shrink-0" />
+            <div className="flex items-center gap-2.5 p-3 rounded-2xl bg-white/[0.04] border border-white/[0.08] hover:border-white/20 hover:bg-white/[0.07] transition-all">
+              <div className="p-2.5 rounded-xl bg-rose-500/20 text-rose-400 border border-rose-400/20">
+                <Heart className="w-4 h-4 shrink-0 fill-rose-400 text-rose-400" />
               </div>
               <div>
-                <p className="font-bold text-white text-sm">ACID Safe</p>
-                <p className="text-[11px] text-slate-400">Zero Race Conditions</p>
+                <p className="font-extrabold text-white text-sm">40% Couple OFF</p>
+                <p className="text-[11px] text-slate-400">Date Night Pass</p>
               </div>
             </div>
 
-            <div className="flex items-center gap-2.5 p-2 rounded-xl bg-white/5 border border-white/5">
-              <div className="p-2 rounded-lg bg-amber-500/20 text-amber-400">
+            <div className="flex items-center gap-2.5 p-3 rounded-2xl bg-white/[0.04] border border-white/[0.08] hover:border-white/20 hover:bg-white/[0.07] transition-all">
+              <div className="p-2.5 rounded-xl bg-amber-500/20 text-amber-400 border border-amber-400/20">
                 <Ticket className="w-4 h-4 shrink-0" />
               </div>
               <div>
-                <p className="font-bold text-white text-sm">Visual Grid</p>
+                <p className="font-extrabold text-white text-sm">Visual Grid</p>
                 <p className="text-[11px] text-slate-400">Interactive Map</p>
               </div>
             </div>
 
-            <div className="flex items-center gap-2.5 p-2 rounded-xl bg-white/5 border border-white/5">
-              <div className="p-2 rounded-lg bg-teal-500/20 text-teal-400">
+            <div className="flex items-center gap-2.5 p-3 rounded-2xl bg-white/[0.04] border border-white/[0.08] hover:border-white/20 hover:bg-white/[0.07] transition-all">
+              <div className="p-2.5 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-400/20">
                 <CheckCircle2 className="w-4 h-4 shrink-0" />
               </div>
               <div>
-                <p className="font-bold text-white text-sm">Instant E-Ticket</p>
-                <p className="text-[11px] text-slate-400">Live Confirmation</p>
+                <p className="font-extrabold text-white text-sm">Instant E-Ticket</p>
+                <p className="text-[11px] text-slate-400">QR Gate Ready</p>
               </div>
             </div>
           </div>
@@ -234,7 +236,8 @@ const Home = () => {
 
         {/* Ambient background decoration */}
         <div className="absolute -right-16 -bottom-16 w-[450px] h-[450px] bg-sky-500/15 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute right-1/4 -top-20 w-80 h-80 bg-indigo-500/15 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute right-1/4 -top-20 w-80 h-80 bg-indigo-500/20 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute left-1/3 -bottom-20 w-72 h-72 bg-purple-500/15 rounded-full blur-3xl pointer-events-none" />
       </section>
 
       {/* 2. Browse Categories Section */}
@@ -259,33 +262,33 @@ const Home = () => {
           </Link>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
           {CATEGORIES.map((cat) => {
             const Icon = cat.icon;
             return (
               <Link
                 key={cat.id}
                 to={`/events/${cat.id}`}
-                className="group bg-white rounded-3xl p-5 border border-slate-200 shadow-xs hover:shadow-lg hover:-translate-y-1 transition-all duration-300 flex flex-col justify-between"
+                className="group bg-white/95 backdrop-blur-md rounded-3xl p-6 border border-slate-200/80 shadow-xs hover:shadow-xl hover:-translate-y-1.5 transition-all duration-300 flex flex-col justify-between"
               >
                 <div>
                   <div
-                    className={`w-12 h-12 rounded-2xl flex items-center justify-center mb-4 transition-transform group-hover:scale-110 ${cat.bg} ${cat.border} border`}
+                    className={`w-12 h-12 rounded-2xl flex items-center justify-center mb-4 transition-transform group-hover:scale-110 shadow-2xs ${cat.bg} ${cat.border} border`}
                   >
                     <Icon className={`w-6 h-6 ${cat.text}`} />
                   </div>
 
-                  <h3 className="font-bold text-slate-900 group-hover:text-sky-600 transition-colors text-base mb-1">
+                  <h3 className="font-extrabold text-slate-900 group-hover:text-sky-600 transition-colors text-base mb-1.5 tracking-tight">
                     {cat.name}
                   </h3>
 
-                  <p className="text-xs text-slate-500 leading-relaxed mb-4">
+                  <p className="text-xs text-slate-500 leading-relaxed mb-5">
                     {cat.desc}
                   </p>
                 </div>
 
-                <div className="flex items-center gap-1.5 text-xs font-bold text-sky-600 group-hover:text-sky-700 pt-2 border-t border-slate-100">
-                  <span>Browse {cat.name.split(' ')[0]}</span>
+                <div className="flex items-center gap-1.5 text-xs font-bold text-sky-600 group-hover:text-sky-700 pt-3 border-t border-slate-100/80">
+                  <span>Explore {cat.name.split(' ')[0]}</span>
                   <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
                 </div>
               </Link>
@@ -309,7 +312,7 @@ const Home = () => {
 
           <Link
             to="/events"
-            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs sm:text-sm font-bold text-white bg-sky-600 hover:bg-sky-500 shadow-md shadow-sky-600/20 transition active:scale-95 self-start sm:self-auto"
+            className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold text-white bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 shadow-md shadow-sky-600/20 transition active:scale-95 self-start sm:self-auto"
           >
             <span>See All Events</span>
             <ArrowRight className="w-4 h-4" />
@@ -332,88 +335,92 @@ const Home = () => {
       </section>
 
       {/* 4. How It Works Section */}
-      <section className="bg-slate-900 text-white rounded-3xl p-8 sm:p-12 border border-slate-800 shadow-xl space-y-8">
-        <div className="text-center max-w-2xl mx-auto space-y-2">
-          <span className="text-xs font-bold uppercase tracking-wider text-sky-400">
-            Simple 4-Step Process
+      <section className="relative overflow-hidden bg-slate-950 text-white rounded-3xl p-8 sm:p-14 border border-slate-800 shadow-2xl space-y-10">
+        <div className="relative z-10 text-center max-w-2xl mx-auto space-y-2">
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-sky-500/15 text-sky-300 border border-sky-400/20">
+            Simple 4-Step Reservation
           </span>
-          <h2 className="text-2xl sm:text-3xl font-black tracking-tight">
+          <h2 className="text-2xl sm:text-4xl font-black tracking-tight">
             How SeatSpot Reservation Works
           </h2>
-          <p className="text-xs sm:text-sm text-slate-400">
-            Engineered with strict concurrency control so you never lose your selected seats to another user.
+          <p className="text-xs sm:text-sm text-slate-400 leading-relaxed">
+            Engineered with strict concurrency control and atomic holding so you never lose your selected seats to another user.
           </p>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 pt-4">
-          <div className="bg-slate-800/60 rounded-2xl p-6 border border-slate-700/60 flex flex-col justify-between">
+        <div className="relative z-10 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 pt-2">
+          <div className="bg-white/[0.04] backdrop-blur-md rounded-2xl p-6 border border-white/[0.08] hover:border-white/20 hover:bg-white/[0.07] transition-all flex flex-col justify-between">
             <div>
-              <span className="w-8 h-8 rounded-xl bg-sky-500/20 text-sky-400 font-black text-sm flex items-center justify-center mb-4 border border-sky-500/30">
+              <span className="w-9 h-9 rounded-xl bg-sky-500/20 text-sky-400 font-black text-sm flex items-center justify-center mb-4 border border-sky-400/30 shadow-xs">
                 1
               </span>
-              <h3 className="font-bold text-base text-white mb-2">Choose an Event</h3>
+              <h3 className="font-extrabold text-base text-white mb-2">Choose an Event</h3>
               <p className="text-xs text-slate-400 leading-relaxed">
-                Filter by Music, Dance, Comedy, Theatre, Sports, or Workshops to find the perfect event.
+                Filter by Car Shows, Esports, Music, Dance, Comedy, Theatre, Sports, or Spa to find your ideal event.
               </p>
             </div>
           </div>
 
-          <div className="bg-slate-800/60 rounded-2xl p-6 border border-slate-700/60 flex flex-col justify-between">
+          <div className="bg-white/[0.04] backdrop-blur-md rounded-2xl p-6 border border-white/[0.08] hover:border-white/20 hover:bg-white/[0.07] transition-all flex flex-col justify-between">
             <div>
-              <span className="w-8 h-8 rounded-xl bg-emerald-500/20 text-emerald-400 font-black text-sm flex items-center justify-center mb-4 border border-emerald-500/30">
+              <span className="w-9 h-9 rounded-xl bg-emerald-500/20 text-emerald-400 font-black text-sm flex items-center justify-center mb-4 border border-emerald-400/30 shadow-xs">
                 2
               </span>
-              <h3 className="font-bold text-base text-white mb-2">Pick Your Seats</h3>
+              <h3 className="font-extrabold text-base text-white mb-2">Pick Your Seats</h3>
               <p className="text-xs text-slate-400 leading-relaxed">
-                Inspect the live seat grid and pick up to 4 available seats with instant price calculation.
+                Inspect the live visual seat grid. Select Standard, 40% Couple Pass, or Group Booking with live calculation.
               </p>
             </div>
           </div>
 
-          <div className="bg-slate-800/60 rounded-2xl p-6 border border-slate-700/60 flex flex-col justify-between">
+          <div className="bg-white/[0.04] backdrop-blur-md rounded-2xl p-6 border border-white/[0.08] hover:border-white/20 hover:bg-white/[0.07] transition-all flex flex-col justify-between">
             <div>
-              <span className="w-8 h-8 rounded-xl bg-amber-500/20 text-amber-400 font-black text-sm flex items-center justify-center mb-4 border border-amber-500/30">
+              <span className="w-9 h-9 rounded-xl bg-amber-500/20 text-amber-400 font-black text-sm flex items-center justify-center mb-4 border border-amber-400/30 shadow-xs">
                 3
               </span>
-              <h3 className="font-bold text-base text-white mb-2">120-Sec Hold Lock</h3>
+              <h3 className="font-extrabold text-base text-white mb-2">120-Sec Atomic Hold</h3>
               <p className="text-xs text-slate-400 leading-relaxed">
-                Seats are held for you for two minutes, preventing any conflicting reservations.
+                Seats are atomically held exclusively for you for two minutes, preventing any conflicting double-bookings.
               </p>
             </div>
           </div>
 
-          <div className="bg-slate-800/60 rounded-2xl p-6 border border-slate-700/60 flex flex-col justify-between">
+          <div className="bg-white/[0.04] backdrop-blur-md rounded-2xl p-6 border border-white/[0.08] hover:border-white/20 hover:bg-white/[0.07] transition-all flex flex-col justify-between">
             <div>
-              <span className="w-8 h-8 rounded-xl bg-purple-500/20 text-purple-400 font-black text-sm flex items-center justify-center mb-4 border border-purple-500/30">
+              <span className="w-9 h-9 rounded-xl bg-purple-500/20 text-purple-400 font-black text-sm flex items-center justify-center mb-4 border border-purple-400/30 shadow-xs">
                 4
               </span>
-              <h3 className="font-bold text-base text-white mb-2">Instant Confirmation</h3>
+              <h3 className="font-extrabold text-base text-white mb-2">Instant E-Ticket & QR</h3>
               <p className="text-xs text-slate-400 leading-relaxed">
-                Get an atomic booking reference and view all your confirmed tickets in My Bookings anytime.
+                Receive atomic booking confirmation with downloadable PDF ticket and live scannable gate QR code.
               </p>
             </div>
           </div>
         </div>
+
+        <div className="absolute right-0 bottom-0 w-80 h-80 bg-sky-500/10 rounded-full blur-3xl pointer-events-none" />
       </section>
 
       {/* 5. Bottom CTA Banner */}
-      <section className="bg-gradient-to-r from-sky-600 to-indigo-600 rounded-3xl p-8 sm:p-12 text-white shadow-xl flex flex-col sm:flex-row items-center justify-between gap-6">
-        <div className="space-y-2 text-center sm:text-left">
-          <h2 className="text-2xl sm:text-3xl font-black">
-            Ready to book your next live event?
+      <section className="relative overflow-hidden bg-gradient-to-r from-sky-600 via-indigo-600 to-purple-600 rounded-3xl p-8 sm:p-14 text-white shadow-2xl flex flex-col sm:flex-row items-center justify-between gap-6">
+        <div className="relative z-10 space-y-2 text-center sm:text-left">
+          <h2 className="text-2xl sm:text-3xl font-black tracking-tight">
+            Ready to book your next live experience?
           </h2>
-          <p className="text-xs sm:text-sm text-sky-100 max-w-xl">
-            Explore our curated catalog of concerts, dance festivals, stand-up shows, sports tournaments, and wellness retreats.
+          <p className="text-xs sm:text-sm text-sky-100 max-w-xl leading-relaxed">
+            Explore our curated catalog of concerts, auto expos, gaming tournaments, stand-up nights, sports clashes, and wellness retreats.
           </p>
         </div>
 
         <Link
           to="/events"
-          className="px-6 py-3.5 bg-white text-sky-700 hover:bg-sky-50 font-bold rounded-2xl text-sm shadow-md transition-all active:scale-95 shrink-0 flex items-center gap-2"
+          className="relative z-10 px-7 py-3.5 bg-white text-slate-900 hover:bg-slate-100 font-black rounded-2xl text-sm shadow-xl transition-all hover:scale-105 active:scale-95 shrink-0 flex items-center gap-2"
         >
           <span>Browse All Events</span>
           <ArrowRight className="w-4 h-4 text-sky-600" />
         </Link>
+
+        <div className="absolute -right-10 -bottom-10 w-64 h-64 bg-white/10 rounded-full blur-2xl pointer-events-none" />
       </section>
     </div>
   );

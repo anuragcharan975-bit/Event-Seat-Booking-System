@@ -11,8 +11,8 @@ export const bookingApi = {
     return response.data;
   },
 
-  createBooking: async (eventId, seatIds) => {
-    const response = await api.post('/bookings', { eventId, seatIds });
+  createBooking: async (eventId, seatIds, options = {}) => {
+    const response = await api.post('/bookings', { eventId, seatIds, ...options });
     return response.data;
   }
 };

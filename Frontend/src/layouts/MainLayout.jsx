@@ -1,7 +1,7 @@
 import React from "react";
 import { Outlet, useLocation, Link } from "react-router-dom";
 import Navbar from "../components/Navbar";
-import { Ticket, ShieldCheck, Clock, Sparkles } from "lucide-react";
+import { Ticket, ShieldCheck, Clock, Sparkles, Heart, CheckCircle2, ArrowRight } from "lucide-react";
 
 const MainLayout = () => {
   const location = useLocation();
@@ -10,7 +10,7 @@ const MainLayout = () => {
     location.pathname === "/login" || location.pathname === "/register";
 
   return (
-    <div className="min-h-screen flex flex-col bg-gradient-to-b from-slate-50 via-slate-100/40 to-slate-50 text-slate-800 antialiased selection:bg-sky-500 selection:text-white">
+    <div className="min-h-screen flex flex-col bg-slate-50 text-slate-800 antialiased selection:bg-sky-500 selection:text-white relative">
       {!isAdminRoute && <Navbar />}
 
       <main
@@ -20,110 +20,116 @@ const MainLayout = () => {
       </main>
 
       {!isAdminRoute && !isAuthRoute && (
-        <footer className="bg-white/90 backdrop-blur-md border-t border-slate-200/80 mt-16">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-8 pb-8 border-b border-slate-100">
+        <footer className="relative mt-20 border-t border-slate-200/80 bg-white/80 backdrop-blur-xl">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-8 pb-10 border-b border-slate-100">
               {/* Brand Col */}
-              <div className="md:col-span-2 space-y-3">
+              <div className="md:col-span-2 space-y-3.5">
                 <Link to="/" className="inline-flex items-center gap-2.5 group">
-                  <div className="p-2 bg-gradient-to-tr from-sky-600 to-indigo-600 rounded-xl text-white shadow-md shadow-sky-600/20 group-hover:scale-105 transition-all">
+                  <div className="p-2.5 bg-gradient-to-tr from-sky-600 via-indigo-600 to-purple-600 rounded-2xl text-white shadow-md shadow-sky-600/25 group-hover:scale-105 group-hover:shadow-sky-600/40 transition-all duration-300">
                     <Ticket className="w-5 h-5" />
                   </div>
                   <div className="flex flex-col">
-                    <span className="font-black text-lg text-slate-900 tracking-tight leading-tight">
-                      Seat<span className="text-sky-600">Spot</span>
+                    <span className="font-black text-xl text-slate-900 tracking-tight leading-tight flex items-center gap-0.5">
+                      Seat<span className="text-transparent bg-clip-text bg-gradient-to-r from-sky-600 to-indigo-600">Spot</span>
                     </span>
-                    <span className="text-[9px] font-bold tracking-wider text-slate-400 uppercase -mt-0.5">
+                    <span className="text-[9px] font-extrabold tracking-widest text-slate-400 uppercase -mt-0.5">
                       Live Reservation Engine
                     </span>
                   </div>
                 </Link>
-                <p className="text-xs text-slate-500 max-w-sm leading-relaxed">
+                <p className="text-xs sm:text-sm text-slate-500 max-w-sm leading-relaxed">
                   Next-generation event seat reservation platform with atomic
-                  120-second seat holds, real-time visual seat grids, and
+                  120-second seat holds, real-time visual seat grids, couple date passes, and
                   guaranteed zero double-bookings.
                 </p>
-                <div className="flex items-center gap-2 pt-1 text-[11px] font-bold text-slate-600">
+                <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-50 text-emerald-800 text-xs font-bold border border-emerald-200 shadow-2xs">
                   <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                  <span>All reservation services live and operational</span>
+                  <span>Real-time Concurrency Engine Active</span>
                 </div>
               </div>
 
-              {/* Quick Links */}
+              {/* Quick Navigation */}
               <div>
-                <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider mb-3">
-                  Quick Navigation
+                <h4 className="text-xs font-black text-slate-900 uppercase tracking-widest mb-3.5">
+                  Navigation
                 </h4>
-                <ul className="space-y-2 text-xs text-slate-600">
+                <ul className="space-y-2.5 text-xs sm:text-sm text-slate-600">
                   <li>
-                    <Link to="/" className="hover:text-sky-600 transition">
-                      Home
+                    <Link to="/" className="hover:text-sky-600 transition flex items-center gap-1.5">
+                      <span>Home</span>
                     </Link>
                   </li>
                   <li>
-                    <Link
-                      to="/events"
-                      className="hover:text-sky-600 transition"
-                    >
-                      All Events Catalog
+                    <Link to="/events" className="hover:text-sky-600 transition flex items-center gap-1.5">
+                      <span>Browse Events Catalog</span>
                     </Link>
                   </li>
                   <li>
-                    <Link
-                      to="/my-bookings"
-                      className="hover:text-sky-600 transition"
-                    >
-                      My Bookings & E-Tickets
+                    <Link to="/verify-ticket" className="hover:text-sky-600 transition flex items-center gap-1.5">
+                      <span>Gate Ticket Verification</span>
                     </Link>
                   </li>
                   <li>
-                    <Link
-                      to="/refund-policy"
-                      className="hover:text-sky-600 transition"
-                    >
-                      Refund Policy
+                    <Link to="/my-bookings" className="hover:text-sky-600 transition flex items-center gap-1.5">
+                      <span>My Bookings & Passes</span>
+                    </Link>
+                  </li>
+                  <li>
+                    <Link to="/refund-policy" className="hover:text-sky-600 transition flex items-center gap-1.5">
+                      <span>Refund & Gate Policies</span>
                     </Link>
                   </li>
                 </ul>
               </div>
 
-              {/* Trust Badges */}
+              {/* Platform Guarantees */}
               <div>
-                <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider mb-3">
+                <h4 className="text-xs font-black text-slate-900 uppercase tracking-widest mb-3.5">
                   Platform Guarantees
                 </h4>
                 <ul className="space-y-2.5 text-xs text-slate-600">
                   <li className="flex items-center gap-2">
-                    <Clock className="w-3.5 h-3.5 text-sky-600 shrink-0" />
-                    <span>120s Atomic Seat Lock</span>
+                    <div className="p-1.5 rounded-lg bg-sky-50 text-sky-600 border border-sky-100">
+                      <Clock className="w-3.5 h-3.5" />
+                    </div>
+                    <span className="font-semibold text-slate-700">120s Atomic Seat Lock</span>
                   </li>
                   <li className="flex items-center gap-2">
-                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                    <span>Zero Double-Booking Guarantee</span>
+                    <div className="p-1.5 rounded-lg bg-emerald-50 text-emerald-600 border border-emerald-100">
+                      <ShieldCheck className="w-3.5 h-3.5" />
+                    </div>
+                    <span className="font-semibold text-slate-700">Zero Overbooking Protection</span>
                   </li>
                   <li className="flex items-center gap-2">
-                    <Sparkles className="w-3.5 h-3.5 text-amber-500 shrink-0" />
-                    <span>Real-time Interactive Grid</span>
+                    <div className="p-1.5 rounded-lg bg-rose-50 text-rose-600 border border-rose-100">
+                      <Heart className="w-3.5 h-3.5 fill-rose-500 text-rose-500" />
+                    </div>
+                    <span className="font-semibold text-slate-700">40% Couple Date Passes</span>
                   </li>
                   <li className="flex items-center gap-2">
-                    <ShieldCheck className="w-3.5 h-3.5 text-purple-600 shrink-0" />
-                    <Link to="/refund-policy" className="hover:text-sky-600 transition">
-                      Official Refund Terms
-                    </Link>
+                    <div className="p-1.5 rounded-lg bg-indigo-50 text-indigo-600 border border-indigo-100">
+                      <Sparkles className="w-3.5 h-3.5" />
+                    </div>
+                    <span className="font-semibold text-slate-700">Instant PDF & QR Tickets</span>
                   </li>
                 </ul>
               </div>
             </div>
 
-            {/* Bottom Bar */}
-            <div className="pt-6 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-400">
-              <p>
-                © {new Date().getFullYear()} SeatSpot — High-Concurrency Ticket
-                Allocation Engine
-              </p>
-              <p className="text-[11px] text-slate-400">
-                Powered by Node.js, Express, MongoDB Transactions & Tailwind CSS
-              </p>
+            <div className="pt-6 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-400">
+              <p>© {new Date().getFullYear()} SeatSpot Inc. All rights reserved. High-concurrency event seating.</p>
+              <div className="flex items-center gap-6">
+                <Link to="/refund-policy" className="hover:text-slate-600 transition">
+                  Terms of Admission
+                </Link>
+                <Link to="/refund-policy" className="hover:text-slate-600 transition">
+                  Privacy Policy
+                </Link>
+                <Link to="/verify-ticket" className="hover:text-slate-600 transition">
+                  Staff Verification Portal
+                </Link>
+              </div>
             </div>
           </div>
         </footer>

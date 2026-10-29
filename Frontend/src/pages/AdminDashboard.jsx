@@ -41,7 +41,8 @@ import {
   Filter,
   Star,
   MessageSquare,
-  Car
+  Car,
+  Heart
 } from 'lucide-react';
 import adminApi from '../api/adminApi';
 import Loading from '../components/Loading';
@@ -379,7 +380,12 @@ const AdminDashboard = () => {
       endTime: formatDateTimeValue(null, timing.end),
       pricePerSeat: '499',
       totalSeats: '40',
-      imageUrl: CATEGORY_DEFINITIONS.find((c) => c.name === 'Game')?.defaultImage || ''
+      imageUrl: CATEGORY_DEFINITIONS.find((c) => c.name === 'Game')?.defaultImage || '',
+      isGroupBookingEnabled: true,
+      groupMinSeats: '10',
+      groupDiscountPercentage: '10',
+      isCoupleTicketEnabled: true,
+      coupleDiscountPercentage: '40'
     };
   });
   const [matchedSource, setMatchedSource] = useState(null);
@@ -673,7 +679,12 @@ const AdminDashboard = () => {
       const res = await adminApi.createEvent({
         ...formData,
         pricePerSeat: Number(formData.pricePerSeat),
-        totalSeats: Number(formData.totalSeats) || 40
+        totalSeats: Number(formData.totalSeats) || 40,
+        isGroupBookingEnabled: Boolean(formData.isGroupBookingEnabled),
+        groupMinSeats: Number(formData.groupMinSeats) || 10,
+        groupDiscountPercentage: Number(formData.groupDiscountPercentage) || 10,
+        isCoupleTicketEnabled: Boolean(formData.isCoupleTicketEnabled),
+        coupleDiscountPercentage: Number(formData.coupleDiscountPercentage) || 10
       });
 
       if (res.success) {
@@ -733,7 +744,12 @@ const AdminDashboard = () => {
       startTime: toDateTimeLocalValue(ev.startTime),
       endTime: toDateTimeLocalValue(ev.endTime),
       pricePerSeat: String(ev.pricePerSeat || ''),
-      imageUrl: ev.imageUrl || ''
+      imageUrl: ev.imageUrl || '',
+      isGroupBookingEnabled: ev.isGroupBookingEnabled !== false,
+      groupMinSeats: String(ev.groupMinSeats || 10),
+      groupDiscountPercentage: String(ev.groupDiscountPercentage || 10),
+      isCoupleTicketEnabled: ev.isCoupleTicketEnabled !== false,
+      coupleDiscountPercentage: String(ev.coupleDiscountPercentage != null ? ev.coupleDiscountPercentage : 40)
     });
     setEditPhotoSourceMode(ev.imageUrl?.startsWith('data:') ? 'gallery' : 'url');
     setEditFormError('');
@@ -815,7 +831,12 @@ const AdminDashboard = () => {
       setSavingEdit(true);
       const res = await adminApi.updateEvent(editingEvent._id, {
         ...editFormData,
-        pricePerSeat: Number(editFormData.pricePerSeat)
+        pricePerSeat: Number(editFormData.pricePerSeat),
+        isGroupBookingEnabled: Boolean(editFormData.isGroupBookingEnabled),
+        groupMinSeats: Number(editFormData.groupMinSeats) || 10,
+        groupDiscountPercentage: Number(editFormData.groupDiscountPercentage) || 10,
+        isCoupleTicketEnabled: Boolean(editFormData.isCoupleTicketEnabled),
+        coupleDiscountPercentage: Number(editFormData.coupleDiscountPercentage) || 10
       });
 
       if (res.success) {
@@ -1615,6 +1636,100 @@ const AdminDashboard = () => {
                         />
                       </div>
                     </div>
+                  </div>
+
+                  {/* Group Booking & Discount Offer Configuration */}
+                  <div className="p-4 bg-gradient-to-r from-amber-50/70 to-emerald-50/70 rounded-2xl border border-amber-200/80 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Users className="w-4 h-4 text-amber-600" />
+                        <span className="text-xs font-bold text-amber-950 uppercase tracking-wider">
+                          Group Booking Discount (Min 10 People)
+                        </span>
+                      </div>
+                      <label className="relative inline-flex items-center cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={formData.isGroupBookingEnabled}
+                          onChange={(e) => setFormData({ ...formData, isGroupBookingEnabled: e.target.checked })}
+                          className="sr-only peer"
+                        />
+                        <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-600"></div>
+                      </label>
+                    </div>
+
+                    {formData.isGroupBookingEnabled && (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                            Min People for Discount
+                          </label>
+                          <input
+                            type="number"
+                            min="2"
+                            max="30"
+                            value={formData.groupMinSeats}
+                            onChange={(e) => setFormData({ ...formData, groupMinSeats: e.target.value })}
+                            className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-900 bg-white"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                            Group Discount Percentage (% OFF)
+                          </label>
+                          <input
+                            type="number"
+                            min="0"
+                            max="100"
+                            value={formData.groupDiscountPercentage}
+                            onChange={(e) => setFormData({ ...formData, groupDiscountPercentage: e.target.value })}
+                            className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-bold text-emerald-700 bg-white"
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Couple Ticket Configuration */}
+                  <div className="p-4 bg-gradient-to-r from-rose-50/70 to-pink-50/70 rounded-2xl border border-rose-200/80 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Heart className="w-4 h-4 text-rose-600 fill-rose-600" />
+                        <span className="text-xs font-bold text-rose-950 uppercase tracking-wider">
+                          Couple Ticket Option (1 Boy + 1 Girl Required)
+                        </span>
+                      </div>
+                      <label className="relative inline-flex items-center cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={formData.isCoupleTicketEnabled}
+                          onChange={(e) => setFormData({ ...formData, isCoupleTicketEnabled: e.target.checked })}
+                          className="sr-only peer"
+                        />
+                        <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-rose-600"></div>
+                      </label>
+                    </div>
+
+                    {formData.isCoupleTicketEnabled && (
+                      <div className="space-y-2 pt-1">
+                        <div>
+                          <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                            Couple Ticket Discount (% OFF)
+                          </label>
+                          <input
+                            type="number"
+                            min="0"
+                            max="100"
+                            value={formData.coupleDiscountPercentage}
+                            onChange={(e) => setFormData({ ...formData, coupleDiscountPercentage: e.target.value })}
+                            className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-bold text-rose-700 bg-white"
+                          />
+                        </div>
+                        <p className="text-[11px] text-rose-800 font-medium leading-relaxed">
+                          ⚠️ Strict Policy: Customers must reach the gate with a female companion. If no girl is standing with them, entry is denied without refund.
+                        </p>
+                      </div>
+                    )}
                   </div>
 
                   {/* Category Default Timings Banner & 1-Click Action */}
@@ -3086,6 +3201,100 @@ const AdminDashboard = () => {
                     required
                   />
                 </div>
+              </div>
+
+              {/* Group Booking & Discount Configuration in Edit Modal */}
+              <div className="p-3.5 bg-gradient-to-r from-amber-50/80 to-emerald-50/80 rounded-2xl border border-amber-200/80 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Users className="w-4 h-4 text-amber-600" />
+                    <span className="text-xs font-bold text-amber-950 uppercase tracking-wider">
+                      Group Booking Discount (Min 10 People)
+                    </span>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={editFormData.isGroupBookingEnabled}
+                      onChange={(e) => setEditFormData({ ...editFormData, isGroupBookingEnabled: e.target.checked })}
+                      className="sr-only peer"
+                    />
+                    <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-600"></div>
+                  </label>
+                </div>
+
+                {editFormData.isGroupBookingEnabled && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                        Min People for Discount
+                      </label>
+                      <input
+                        type="number"
+                        min="2"
+                        max="30"
+                        value={editFormData.groupMinSeats}
+                        onChange={(e) => setEditFormData({ ...editFormData, groupMinSeats: e.target.value })}
+                        className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-900 bg-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                        Group Discount (% OFF)
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        max="100"
+                        value={editFormData.groupDiscountPercentage}
+                        onChange={(e) => setEditFormData({ ...editFormData, groupDiscountPercentage: e.target.value })}
+                        className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-bold text-emerald-700 bg-white"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Couple Ticket Configuration in Edit Modal */}
+              <div className="p-4 bg-gradient-to-r from-rose-50/70 to-pink-50/70 rounded-2xl border border-rose-200/80 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Heart className="w-4 h-4 text-rose-600 fill-rose-600" />
+                    <span className="text-xs font-bold text-rose-950 uppercase tracking-wider">
+                      Couple Ticket Option (1 Boy + 1 Girl Mandatory)
+                    </span>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={editFormData.isCoupleTicketEnabled}
+                      onChange={(e) => setEditFormData({ ...editFormData, isCoupleTicketEnabled: e.target.checked })}
+                      className="sr-only peer"
+                    />
+                    <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-rose-600"></div>
+                  </label>
+                </div>
+
+                {editFormData.isCoupleTicketEnabled && (
+                  <div className="space-y-2 pt-1">
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                        Couple Ticket Discount (% OFF)
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        max="100"
+                        value={editFormData.coupleDiscountPercentage}
+                        onChange={(e) => setEditFormData({ ...editFormData, coupleDiscountPercentage: e.target.value })}
+                        className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-bold text-rose-700 bg-white"
+                      />
+                    </div>
+                    <p className="text-[11px] text-rose-800 font-medium leading-relaxed">
+                      ⚠️ Strict Policy: Customers must arrive with a female companion. If no girl is present at the gate, admission is denied without refund.
+                    </p>
+                  </div>
+                )}
               </div>
 
               {/* Category Default Timings Banner in Edit Modal */}

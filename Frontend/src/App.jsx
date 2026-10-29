@@ -14,6 +14,8 @@ import Login from './pages/Login';
 import Register from './pages/Register';
 import ChangePassword from './pages/ChangePassword';
 import RefundPolicy from './pages/RefundPolicy';
+import TicketDetails from './pages/TicketDetails';
+import TicketVerification from './pages/TicketVerification';
 import NotFound from './pages/NotFound';
 
 function App() {
@@ -48,6 +50,9 @@ function App() {
             <Route path="admin" element={<NotFound />} />
             <Route path="refundpolicy" element={<RefundPolicy />} />
             <Route path="refund-policy" element={<RefundPolicy />} />
+            <Route path="tickets/:bookingReference" element={<TicketDetails />} />
+            <Route path="ticket/:bookingReference" element={<TicketDetails />} />
+            <Route path="verify-ticket" element={<TicketVerification />} />
             <Route path="change-password" element={<ChangePassword />} />
             <Route path="forgot-password" element={<ChangePassword />} />
             <Route path="login" element={<Login />} />

@@ -42,14 +42,16 @@ const cancelBooking = asyncHandler(async (req, res) => {
  * @access  Protected
  */
 const createBooking = asyncHandler(async (req, res) => {
-  const { eventId, seatIds, testClockNow } = req.body;
+  const { eventId, seatIds, testClockNow, isCoupleBooking, coupleDisclaimerAccepted } = req.body;
   const clockNow = process.env.NODE_ENV === 'test' && testClockNow ? new Date(testClockNow) : null;
 
   const booking = await bookingService.createDirectBooking({
     userId: req.user.id,
     eventId,
     seatIds,
-    clockNow
+    clockNow,
+    isCoupleBooking: Boolean(isCoupleBooking),
+    coupleDisclaimerAccepted: Boolean(coupleDisclaimerAccepted)
   });
 
   return res.status(201).json({

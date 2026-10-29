@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Calendar, MapPin, Ticket, ArrowRight, Tag, Check, Clock, Star } from 'lucide-react';
+import { Calendar, MapPin, Ticket, ArrowRight, Tag, Check, Clock, Star, Users, Heart } from 'lucide-react';
 import { formatCurrency } from '../utils/formatCurrency';
 import { formatDate, getEventTimingDisplay } from '../utils/formatDate';
 import { slugify } from '../utils/slugify';
@@ -136,7 +136,7 @@ const EventCard = ({ event }) => {
   const availablePercentage = Math.round((event.availableSeats / totalSeats) * 100);
 
   return (
-    <div className="bg-white rounded-3xl border border-slate-200 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 overflow-hidden flex flex-col justify-between group">
+    <div className="bg-white/95 rounded-3xl border border-slate-200/80 shadow-modern hover:shadow-modern-hover hover:-translate-y-1 transition-all duration-300 overflow-hidden flex flex-col justify-between group">
       {/* Event Image Banner with Object-Cover & Smooth Hover Scale */}
       <div className="relative h-48 sm:h-52 w-full overflow-hidden bg-slate-900">
         <Link to={eventUrl} className="block w-full h-full">
@@ -380,6 +380,33 @@ const EventCard = ({ event }) => {
             <span className="truncate">{event.venue}</span>
           </div>
         </div>
+
+        {/* Special Offers: Couple Pass (40% OFF) & Group Discount */}
+        <div className="mt-3.5 space-y-1.5">
+          {event.isCoupleTicketEnabled !== false && (
+            <div className="px-3 py-1.5 bg-rose-50/80 border border-rose-200/90 rounded-xl flex items-center justify-between text-[11px] shadow-2xs">
+              <span className="font-bold text-rose-900 flex items-center gap-1.5">
+                <Heart className="w-3.5 h-3.5 text-rose-600 fill-rose-600 shrink-0" />
+                <span>Couple Pass (1 Boy + 1 Girl)</span>
+              </span>
+              <span className="font-black text-rose-700 bg-white px-2 py-0.5 rounded-md shadow-2xs border border-rose-200">
+                {event.coupleDiscountPercentage || 40}% OFF
+              </span>
+            </div>
+          )}
+
+          {event.isGroupBookingEnabled !== false && (
+            <div className="px-3 py-1.5 bg-gradient-to-r from-amber-50 to-emerald-50 border border-amber-200/80 rounded-xl flex items-center justify-between text-[11px]">
+              <span className="font-bold text-amber-900 flex items-center gap-1.5">
+                <Users className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                <span>Group ({event.groupMinSeats || 10}+ seats)</span>
+              </span>
+              <span className="font-black text-emerald-700 bg-white px-2 py-0.5 rounded-md shadow-2xs border border-emerald-200">
+                {event.groupDiscountPercentage || 10}% OFF
+              </span>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Action Footer */}
@@ -388,7 +415,7 @@ const EventCard = ({ event }) => {
           <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
             Price per seat
           </span>
-          <span className="text-lg font-black text-slate-900">
+          <span className="text-xl font-black text-slate-900">
             {formatCurrency(event.pricePerSeat)}
           </span>
         </div>
@@ -402,7 +429,7 @@ const EventCard = ({ event }) => {
               ? 'bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200'
               : isSoldOut
               ? 'bg-slate-200 text-slate-400 cursor-not-allowed pointer-events-none'
-              : 'bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 text-white shadow-md shadow-sky-600/25 hover:shadow-sky-600/40 active:scale-95'
+              : 'bg-gradient-to-r from-sky-600 via-indigo-600 to-purple-600 hover:from-sky-500 hover:via-indigo-500 hover:to-purple-500 text-white shadow-md shadow-sky-600/25 hover:shadow-sky-600/40 active:scale-95'
           }`}
         >
           <span>
@@ -414,7 +441,7 @@ const EventCard = ({ event }) => {
               ? 'Sold Out'
               : 'Select Seats'}
           </span>
-          <ArrowRight className="w-4 h-4" />
+          <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
         </Link>
       </div>
     </div>

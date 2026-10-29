@@ -12,7 +12,7 @@ const asyncHandler = require('../utils/asyncHandler');
  */
 const createHold = asyncHandler(async (req, res) => {
   const { eventId } = req.params;
-  const { seatIds, testClockNow, durationSeconds } = req.body;
+  const { seatIds, testClockNow, durationSeconds, isCoupleBooking, coupleDisclaimerAccepted } = req.body;
 
   // Use testClockNow if provided in testing mode
   const clockNow = process.env.NODE_ENV === 'test' && testClockNow ? new Date(testClockNow) : null;
@@ -22,7 +22,9 @@ const createHold = asyncHandler(async (req, res) => {
     eventId,
     seatIds,
     durationSeconds: durationSeconds || null,
-    clockNow
+    clockNow,
+    isCoupleBooking: Boolean(isCoupleBooking),
+    coupleDisclaimerAccepted: Boolean(coupleDisclaimerAccepted)
   });
 
   return res.status(201).json({
@@ -119,6 +121,11 @@ const getMyActiveHold = asyncHandler(async (req, res) => {
     );
   }
 
+  let eventDoc = null;
+  if (mongoose.Types.ObjectId.isValid(eventMongoId)) {
+    eventDoc = await Event.findById(eventMongoId).select('isGroupBookingEnabled groupMinSeats groupDiscountPercentage totalSeats');
+  }
+
   const maxSeatsAllowed = 4;
   const remainingSeatsAllowed = Math.max(0, maxSeatsAllowed - userBookedSeatsCount);
   const isMaxSeatsReached = userBookedSeatsCount >= maxSeatsAllowed;
@@ -129,7 +136,13 @@ const getMyActiveHold = asyncHandler(async (req, res) => {
     userBookedSeatsCount,
     maxSeatsAllowed,
     remainingSeatsAllowed,
-    isMaxSeatsReached
+    isMaxSeatsReached,
+    groupBooking: {
+      isEnabled: eventDoc ? eventDoc.isGroupBookingEnabled !== false : true,
+      minSeats: eventDoc?.groupMinSeats || 10,
+      discountPercentage: eventDoc?.groupDiscountPercentage || 10,
+      maxSeats: Math.min(20, eventDoc?.totalSeats || 40)
+    }
   });
 });
 

@@ -1,22 +1,28 @@
 import React from 'react';
-import { Clock, Lock } from 'lucide-react';
+import { Clock, Lock, Heart } from 'lucide-react';
 
-const SeatLegend = () => {
+const SeatLegend = ({ isCoupleMode = false }) => {
   const legendItems = [
     {
       label: 'Available',
       icon: null,
-      colorClass: 'bg-white border-2 border-slate-300 text-slate-700'
+      colorClass: isCoupleMode
+        ? 'bg-white border-2 border-pink-200 text-slate-700'
+        : 'bg-white border-2 border-slate-300 text-slate-700'
     },
     {
-      label: 'Selected',
-      icon: null,
-      colorClass: 'bg-sky-600 border-2 border-sky-600 text-white font-black'
+      label: isCoupleMode ? 'Couple Seat' : 'Selected',
+      icon: isCoupleMode ? <Heart className="w-2.5 h-2.5 fill-white text-white" /> : null,
+      colorClass: isCoupleMode
+        ? 'bg-gradient-to-r from-rose-500 to-pink-500 border-2 border-rose-400 text-white font-black shadow-xs'
+        : 'bg-sky-600 border-2 border-sky-600 text-white font-black'
     },
     {
       label: 'Held by You',
       icon: <Clock className="w-3 h-3 text-white" />,
-      colorClass: 'bg-emerald-600 border-2 border-emerald-600 text-white animate-pulse'
+      colorClass: isCoupleMode
+        ? 'bg-rose-600 border-2 border-rose-600 text-white animate-pulse'
+        : 'bg-emerald-600 border-2 border-emerald-600 text-white animate-pulse'
     },
     {
       label: 'Held (Others)',
@@ -31,7 +37,13 @@ const SeatLegend = () => {
   ];
 
   return (
-    <div className="flex flex-wrap items-center justify-center gap-3 sm:gap-4 py-3 px-4 sm:px-6 bg-slate-50 border border-slate-200 rounded-2xl">
+    <div
+      className={`flex flex-wrap items-center justify-center gap-3 sm:gap-4 py-3 px-4 sm:px-6 rounded-2xl transition-all duration-300 ${
+        isCoupleMode
+          ? 'bg-rose-50/90 border border-rose-200 shadow-xs'
+          : 'bg-slate-50 border border-slate-200'
+      }`}
+    >
       {legendItems.map((item) => (
         <div key={item.label} className="flex items-center gap-1.5 sm:gap-2">
           <div
@@ -39,7 +51,11 @@ const SeatLegend = () => {
           >
             {item.icon ? item.icon : item.label === 'Booked' ? '✕' : ''}
           </div>
-          <span className="text-[11px] sm:text-xs font-semibold text-slate-600">
+          <span
+            className={`text-[11px] sm:text-xs font-semibold ${
+              isCoupleMode ? 'text-rose-900' : 'text-slate-600'
+            }`}
+          >
             {item.label}
           </span>
         </div>

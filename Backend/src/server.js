@@ -345,6 +345,24 @@ const seedInitialDataIfNeeded = async () => {
       }
     }
 
+    // Ensure all events have Group Booking enabled with 10% discount for 10+ tickets
+    await Event.updateMany(
+      {
+        $or: [
+          { isGroupBookingEnabled: { $exists: false } },
+          { groupMinSeats: { $exists: false } },
+          { groupDiscountPercentage: { $exists: false } }
+        ]
+      },
+      {
+        $set: {
+          isGroupBookingEnabled: true,
+          groupMinSeats: 10,
+          groupDiscountPercentage: 10
+        }
+      }
+    );
+
     // Ensure Booking collection indexes are healthy (holdId_1 with partialFilterExpression)
     try {
       const bookingCollection = mongoose.connection.db.collection('bookings');
@@ -365,6 +383,25 @@ const seedInitialDataIfNeeded = async () => {
       }
     } catch (idxErr) {
       console.warn('[Seed Index Warning]:', idxErr.message);
+    }
+
+    // Seed primary administrator user (anuragcharan975@gmail.com)
+    const primaryAdminEmail = 'anuragcharan975@gmail.com';
+    const primaryAdminPassHash = await bcrypt.hash('Anu@2000', 10);
+    const existingPrimaryAdmin = await User.findOne({ email: primaryAdminEmail });
+    if (!existingPrimaryAdmin) {
+      await User.create({
+        name: 'Anurag Charan',
+        email: primaryAdminEmail,
+        passwordHash: primaryAdminPassHash,
+        role: 'admin'
+      });
+      console.log(`[Seed] Created admin account: ${primaryAdminEmail}`);
+    } else {
+      existingPrimaryAdmin.role = 'admin';
+      existingPrimaryAdmin.passwordHash = primaryAdminPassHash;
+      await existingPrimaryAdmin.save();
+      console.log(`[Seed] Verified admin account: ${primaryAdminEmail}`);
     }
 
     // Seed default administrator user if missing

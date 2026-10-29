@@ -39,11 +39,50 @@ const bookingSchema = new mongoose.Schema(
       required: [true, 'Amount is required'],
       min: [0, 'Amount cannot be negative']
     },
+    isGroupBooking: {
+      type: Boolean,
+      default: false
+    },
+    isCoupleBooking: {
+      type: Boolean,
+      default: false
+    },
+    coupleDisclaimerAccepted: {
+      type: Boolean,
+      default: false
+    },
+    originalAmount: {
+      type: Number,
+      default: 0
+    },
+    discountAmount: {
+      type: Number,
+      default: 0
+    },
+    discountPercentage: {
+      type: Number,
+      default: 0
+    },
     status: {
       type: String,
       enum: ['CONFIRMED', 'CANCELLED'],
       default: 'CONFIRMED',
       required: true
+    },
+    checkInStatus: {
+      type: String,
+      enum: ['PENDING', 'CHECKED_IN'],
+      default: 'PENDING',
+      index: true
+    },
+    checkedInAt: {
+      type: Date,
+      default: null
+    },
+    checkedInBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null
     },
     cancelledAt: {
       type: Date,

@@ -1,8 +1,8 @@
 import api from './axios';
 
 export const holdApi = {
-  createHold: async (eventId, seatIds) => {
-    const response = await api.post(`/events/${eventId}/holds`, { seatIds });
+  createHold: async (eventId, seatIds, options = {}) => {
+    const response = await api.post(`/events/${eventId}/holds`, { seatIds, ...options });
     return response.data;
   },
 

@@ -104,7 +104,15 @@ const confirmBooking = async ({ holdId, userId, clockNow = null }) => {
     throw error;
   }
 
-  // Verify user maximum seat limit (4 seats per user per event)
+  // Determine if this booking qualifies as a Group Booking (min 10 seats or event.groupMinSeats)
+  const isGroupBooking = Boolean(
+    hold.isGroupBooking ||
+    (event.isGroupBookingEnabled !== false && hold.seatIds.length >= (event.groupMinSeats || 10))
+  );
+  const isCoupleBooking = Boolean(hold.isCoupleBooking);
+  const coupleDisclaimerAccepted = Boolean(hold.coupleDisclaimerAccepted);
+
+  // Verify user maximum seat limit (4 seats per user per event, OR group booking capacity)
   const existingBookings = await Booking.find({
     userId: hold.userId,
     eventId: hold.eventId,
@@ -116,21 +124,38 @@ const confirmBooking = async ({ holdId, userId, clockNow = null }) => {
     0
   );
 
-  if (alreadyBookedSeatsCount >= 4) {
-    const error = new Error('You already booked your max seats for this event. Maximum limit is 4 seats per event.');
-    error.statusCode = 400;
-    throw error;
+  if (!isGroupBooking) {
+    if (alreadyBookedSeatsCount >= 4) {
+      const error = new Error('You already booked your max seats for this event. Maximum limit is 4 seats per event.');
+      error.statusCode = 400;
+      throw error;
+    }
+
+    if (alreadyBookedSeatsCount + hold.seatIds.length > 4) {
+      const remaining = 4 - alreadyBookedSeatsCount;
+      const error = new Error(`You can only book up to ${remaining} more seat(s) for this event. Maximum limit is 4 seats per event.`);
+      error.statusCode = 400;
+      throw error;
+    }
+  } else {
+    const maxGroupAllowed = Math.min(20, event.totalSeats || 40);
+    if (alreadyBookedSeatsCount + hold.seatIds.length > maxGroupAllowed) {
+      const error = new Error(`Group reservation exceeds maximum allowed capacity of ${maxGroupAllowed} seats.`);
+      error.statusCode = 400;
+      throw error;
+    }
   }
 
-  if (alreadyBookedSeatsCount + hold.seatIds.length > 4) {
-    const remaining = 4 - alreadyBookedSeatsCount;
-    const error = new Error(`You can only book up to ${remaining} more seat(s) for this event. Maximum limit is 4 seats per event.`);
-    error.statusCode = 400;
-    throw error;
+  // Calculate authoritative amount on the server (with Group Discount if 10+ seats, or Couple Discount if couple booking)
+  const baseAmount = event.pricePerSeat * hold.seatIds.length;
+  let discountPct = 0;
+  if (isGroupBooking) {
+    discountPct = event.groupDiscountPercentage || 10;
+  } else if (isCoupleBooking) {
+    discountPct = event.coupleDiscountPercentage != null ? event.coupleDiscountPercentage : 40;
   }
-
-  // Calculate authoritative amount on the server
-  const trustedAmount = event.pricePerSeat * hold.seatIds.length;
+  const discountAmount = discountPct > 0 ? Math.round((baseAmount * discountPct) / 100) : 0;
+  const trustedAmount = baseAmount - discountAmount;
   const bookingReference = generateBookingReference();
 
   const useReplicaSetTransaction = supportsTransactions();
@@ -196,6 +221,12 @@ const confirmBooking = async ({ holdId, userId, clockNow = null }) => {
               holdId: hold._id,
               seatIds: hold.seatIds,
               amount: trustedAmount,
+              isGroupBooking,
+              isCoupleBooking: Boolean(isCoupleBooking),
+              coupleDisclaimerAccepted: Boolean(coupleDisclaimerAccepted),
+              originalAmount: baseAmount,
+              discountAmount,
+              discountPercentage: discountPct,
               status: 'CONFIRMED'
             }
           ],
@@ -275,6 +306,12 @@ const confirmBooking = async ({ holdId, userId, clockNow = null }) => {
         holdId: hold._id,
         seatIds: hold.seatIds,
         amount: trustedAmount,
+        isGroupBooking,
+        isCoupleBooking: Boolean(isCoupleBooking),
+        coupleDisclaimerAccepted: Boolean(coupleDisclaimerAccepted),
+        originalAmount: baseAmount,
+        discountAmount,
+        discountPercentage: discountPct,
         status: 'CONFIRMED'
       });
 
@@ -505,7 +542,14 @@ const getUserBookings = async (userId) => {
  * @param {Array<string>} params.seatIds
  * @param {Date} [params.clockNow]
  */
-const createDirectBooking = async ({ userId, eventId, seatIds, clockNow = null }) => {
+const createDirectBooking = async ({
+  userId,
+  eventId,
+  seatIds,
+  clockNow = null,
+  isCoupleBooking = false,
+  coupleDisclaimerAccepted = false
+}) => {
   const now = clockNow ? new Date(clockNow) : new Date();
 
   // 1. Validate empty seat selection
@@ -547,7 +591,33 @@ const createDirectBooking = async ({ userId, eventId, seatIds, clockNow = null }
     throw error;
   }
 
-  // 5b. Verify user maximum seat limit (4 seats per user per event)
+  // 5b. Determine if this qualifies as a Group Booking (min 10 seats or event.groupMinSeats)
+  const isGroupBooking = Boolean(
+    !isCoupleBooking &&
+    event.isGroupBookingEnabled !== false &&
+    seatIds.length >= (event.groupMinSeats || 10)
+  );
+
+  // 5c. Validate Couple Ticket condition
+  if (isCoupleBooking) {
+    if (event.isCoupleTicketEnabled === false) {
+      const error = new Error('Couple tickets are not available for this event.');
+      error.statusCode = 400;
+      throw error;
+    }
+    if (seatIds.length !== 2) {
+      const error = new Error('Couple Ticket Condition: You must select exactly 2 seats for 1 Boy and 1 Girl.');
+      error.statusCode = 400;
+      throw error;
+    }
+    if (!coupleDisclaimerAccepted) {
+      const error = new Error('You must accept the strict couple entry policy (1 Boy + 1 Girl required at gate) to book a couple ticket.');
+      error.statusCode = 400;
+      throw error;
+    }
+  }
+
+  // Verify user maximum seat limit (4 seats per user per event, OR group booking capacity)
   if (userId) {
     const existingBookings = await Booking.find({
       userId,
@@ -559,17 +629,26 @@ const createDirectBooking = async ({ userId, eventId, seatIds, clockNow = null }
       0
     );
 
-    if (alreadyBookedSeatsCount >= 4) {
-      const error = new Error('You already booked your max seats for this event. Maximum limit is 4 seats per event.');
-      error.statusCode = 400;
-      throw error;
-    }
+    if (!isGroupBooking) {
+      if (alreadyBookedSeatsCount >= 4) {
+        const error = new Error('You already booked your max seats for this event. Maximum limit is 4 seats per event.');
+        error.statusCode = 400;
+        throw error;
+      }
 
-    if (alreadyBookedSeatsCount + seatIds.length > 4) {
-      const remaining = 4 - alreadyBookedSeatsCount;
-      const error = new Error(`You can only book up to ${remaining} more seat(s) for this event. Maximum limit is 4 seats per event.`);
-      error.statusCode = 400;
-      throw error;
+      if (alreadyBookedSeatsCount + seatIds.length > 4) {
+        const remaining = 4 - alreadyBookedSeatsCount;
+        const error = new Error(`You can only book up to ${remaining} more seat(s) for this event. Maximum limit is 4 seats per event.`);
+        error.statusCode = 400;
+        throw error;
+      }
+    } else {
+      const maxGroupAllowed = Math.min(20, event.totalSeats || 40);
+      if (alreadyBookedSeatsCount + seatIds.length > maxGroupAllowed) {
+        const error = new Error(`Group reservation exceeds maximum allowed capacity of ${maxGroupAllowed} seats.`);
+        error.statusCode = 400;
+        throw error;
+      }
     }
   }
 
@@ -599,7 +678,16 @@ const createDirectBooking = async ({ userId, eventId, seatIds, clockNow = null }
     }
   }
 
-  const trustedAmount = event.pricePerSeat * seatIds.length;
+  // Authoritative amount calculation with Group or Couple Discount applied
+  const baseAmount = event.pricePerSeat * seatIds.length;
+  let discountPct = 0;
+  if (isGroupBooking) {
+    discountPct = event.groupDiscountPercentage || 10;
+  } else if (isCoupleBooking) {
+    discountPct = event.coupleDiscountPercentage != null ? event.coupleDiscountPercentage : 40;
+  }
+  const discountAmount = discountPct > 0 ? Math.round((baseAmount * discountPct) / 100) : 0;
+  const trustedAmount = baseAmount - discountAmount;
   const bookingReference = generateBookingReference();
   const useReplicaSetTransaction = supportsTransactions();
 
@@ -644,6 +732,12 @@ const createDirectBooking = async ({ userId, eventId, seatIds, clockNow = null }
               eventId: event._id,
               seatIds,
               amount: trustedAmount,
+              isGroupBooking,
+              isCoupleBooking: Boolean(isCoupleBooking),
+              coupleDisclaimerAccepted: Boolean(coupleDisclaimerAccepted),
+              originalAmount: baseAmount,
+              discountAmount,
+              discountPercentage: discountPct,
               status: 'CONFIRMED'
             }
           ],
@@ -699,6 +793,12 @@ const createDirectBooking = async ({ userId, eventId, seatIds, clockNow = null }
         eventId: event._id,
         seatIds,
         amount: trustedAmount,
+        isGroupBooking,
+        isCoupleBooking: Boolean(isCoupleBooking),
+        coupleDisclaimerAccepted: Boolean(coupleDisclaimerAccepted),
+        originalAmount: baseAmount,
+        discountAmount,
+        discountPercentage: discountPct,
         status: 'CONFIRMED'
       });
 

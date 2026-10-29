@@ -23,7 +23,10 @@ import {
   RotateCcw,
   Sparkles,
   Tag,
-  Download
+  Download,
+  Users,
+  QrCode,
+  Heart
 } from 'lucide-react';
 
 const MyBookings = () => {
@@ -177,19 +180,28 @@ const MyBookings = () => {
             </div>
           </div>
           {bookings.find((b) => b.bookingReference === justBookedRef) && (
-            <button
-              type="button"
-              onClick={() =>
-                handleDownloadTicket(
-                  bookings.find((b) => b.bookingReference === justBookedRef)
-                )
-              }
-              disabled={Boolean(downloadingId)}
-              className="px-4 py-2.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-500 rounded-xl transition shadow-md shadow-emerald-600/25 flex items-center gap-2 shrink-0 active:scale-95 disabled:opacity-50"
-            >
-              <Download className="w-4 h-4" />
-              <span>Download Ticket (PDF)</span>
-            </button>
+            <div className="flex items-center gap-2 shrink-0">
+              <Link
+                to={`/tickets/${justBookedRef}`}
+                className="px-4 py-2.5 text-xs font-bold text-emerald-950 bg-white hover:bg-emerald-50 border border-emerald-300 rounded-xl transition shadow-xs flex items-center gap-2 active:scale-95"
+              >
+                <QrCode className="w-4 h-4 text-emerald-700" />
+                <span>View E-Ticket & QR</span>
+              </Link>
+              <button
+                type="button"
+                onClick={() =>
+                  handleDownloadTicket(
+                    bookings.find((b) => b.bookingReference === justBookedRef)
+                  )
+                }
+                disabled={Boolean(downloadingId)}
+                className="px-4 py-2.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-500 rounded-xl transition shadow-md shadow-emerald-600/25 flex items-center gap-2 shrink-0 active:scale-95 disabled:opacity-50"
+              >
+                <Download className="w-4 h-4" />
+                <span>Download Ticket (PDF)</span>
+              </button>
+            </div>
           )}
         </div>
       )}
@@ -306,6 +318,8 @@ const MyBookings = () => {
                     ? 'border-emerald-300 ring-2 ring-emerald-400/20 bg-emerald-50/10'
                     : isCancelled
                     ? 'border-slate-200/80 opacity-80 bg-slate-50/50'
+                    : booking.isCoupleBooking
+                    ? 'border-rose-200/90 ring-1 ring-rose-200/50 bg-gradient-to-b from-white via-rose-50/10 to-pink-50/15'
                     : 'border-slate-200/80'
                 }`}
               >
@@ -358,6 +372,36 @@ const MyBookings = () => {
                       )}
                     </span>
 
+                    {/* Couple Booking Badge if applicable */}
+                    {booking.isCoupleBooking && (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-rose-50 text-rose-800 border border-rose-200">
+                        <Heart className="w-3 h-3 text-rose-600 fill-rose-600" />
+                        <span>Couple Pass (1 Boy + 1 Girl)</span>
+                      </span>
+                    )}
+
+                    {/* Group Booking Badge if applicable */}
+                    {(booking.isGroupBooking || (booking.discountAmount && booking.discountAmount > 0)) && (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-50 text-amber-900 border border-amber-200">
+                        <Users className="w-3 h-3 text-amber-600" />
+                        <span>Group Booking (-{booking.discountPercentage || 10}%)</span>
+                      </span>
+                    )}
+
+                    {/* Gate Admission Check-In Status */}
+                    {!isCancelled && (
+                      <span
+                        className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold border ${
+                          booking.checkInStatus === 'CHECKED_IN'
+                            ? 'bg-purple-50 text-purple-700 border-purple-200'
+                            : 'bg-sky-50 text-sky-700 border-sky-200'
+                        }`}
+                      >
+                        <QrCode className="w-3 h-3" />
+                        <span>{booking.checkInStatus === 'CHECKED_IN' ? 'Admitted' : 'Ready for Entry'}</span>
+                      </span>
+                    )}
+
                     {/* Amount */}
                     <span
                       className={`text-xl font-black ${
@@ -393,8 +437,17 @@ const MyBookings = () => {
                       </div>
                     </div>
 
-                    {/* Action Buttons: Download Ticket (PDF) & Cancellation */}
+                    {/* Action Buttons: View E-Ticket & QR, Download Ticket (PDF) & Cancellation */}
                     <div className="flex flex-wrap items-center gap-2 self-start">
+                      <Link
+                        to={`/tickets/${booking.bookingReference}`}
+                        className="px-3.5 py-2 text-xs font-bold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl transition-all shadow-2xs flex items-center gap-1.5 active:scale-95"
+                        title="View Official E-Ticket with Live QR Code"
+                      >
+                        <QrCode className="w-3.5 h-3.5 text-sky-600" />
+                        <span>View E-Ticket & QR</span>
+                      </Link>
+
                       <button
                         type="button"
                         onClick={() => handleDownloadTicket(booking)}
@@ -452,13 +505,18 @@ const MyBookings = () => {
                         {(booking.seats || []).map((s) => (
                           <span
                             key={s._id}
-                            className={`font-mono text-xs font-bold px-2 py-0.5 rounded-md border ${
+                            className={`font-mono text-xs font-bold px-2 py-0.5 rounded-md border flex items-center gap-1 ${
                               isCancelled
                                 ? 'bg-slate-100 text-slate-400 border-slate-200 line-through'
+                                : booking.isCoupleBooking
+                                ? 'bg-rose-50 text-rose-700 border-rose-200'
                                 : 'bg-sky-50 text-sky-700 border-sky-200'
                             }`}
                           >
-                            {s.seatNumber}
+                            {booking.isCoupleBooking && !isCancelled && (
+                              <Heart className="w-2.5 h-2.5 fill-rose-500 text-rose-500 shrink-0" />
+                            )}
+                            <span>Seat {s.seatNumber}</span>
                           </span>
                         ))}
                         <span className="text-slate-400 text-xs">

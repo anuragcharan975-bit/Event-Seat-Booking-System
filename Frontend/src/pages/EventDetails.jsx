@@ -30,7 +30,8 @@ import {
   Info,
   Users,
   Check,
-  Star
+  Star,
+  Heart
 } from 'lucide-react';
 
 const EventDetails = () => {
@@ -47,6 +48,10 @@ const EventDetails = () => {
   const [activeHold, setActiveHold] = useState(null);
   const [userBookedCount, setUserBookedCount] = useState(0);
   const [seatError, setSeatError] = useState('');
+  const [isGroupMode, setIsGroupMode] = useState(false);
+  const [isCoupleMode, setIsCoupleMode] = useState(false);
+  const [showCoupleModal, setShowCoupleModal] = useState(false);
+  const [coupleDisclaimerAgreed, setCoupleDisclaimerAgreed] = useState(false);
 
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
@@ -137,6 +142,11 @@ const EventDetails = () => {
     initialize();
   }, [fetchSeatsAndDetails, restoreActiveHold, effectiveEventId, category, slug, navigate]);
 
+  // Group booking configurations
+  const isGroupBookingAvailable = event?.isGroupBookingEnabled !== false;
+  const groupMinQuota = event?.groupMinSeats || 10;
+  const groupDiscountPct = event?.groupDiscountPercentage || 10;
+
   // Handle seat toggle
   const handleToggleSeat = (seat) => {
     if (activeHold) return; // Prevent modifying selection while hold is active
@@ -146,18 +156,31 @@ const EventDetails = () => {
     if (selectedSeatIds.includes(seatId)) {
       setSelectedSeatIds((prev) => prev.filter((id) => id !== seatId));
     } else {
-      if (userBookedCount >= 4) {
-        setSeatError('You already booked your max seats for this event. Maximum limit is 4 seats per event.');
-        return;
-      }
-      const remainingQuota = Math.max(0, 4 - userBookedCount);
-      if (selectedSeatIds.length >= remainingQuota) {
-        if (userBookedCount > 0) {
-          setSeatError(`You have already booked ${userBookedCount} seat(s). You can only select up to ${remainingQuota} more seat(s). Maximum limit is 4 seats per event.`);
-        } else {
-          setSeatError('You may select a maximum of 4 seats per booking reservation.');
+      if (isCoupleMode) {
+        if (selectedSeatIds.length >= 2) {
+          setSeatError('Couple ticket is strictly for 2 people (1 Boy + 1 Girl). You have already selected both seats!');
+          return;
         }
-        return;
+      } else if (!isGroupMode) {
+        if (userBookedCount >= 4) {
+          setSeatError('You already booked your max seats for this event. Maximum limit is 4 seats per event.');
+          return;
+        }
+        const remainingQuota = Math.max(0, 4 - userBookedCount);
+        if (selectedSeatIds.length >= remainingQuota) {
+          if (userBookedCount > 0) {
+            setSeatError(`You have already booked ${userBookedCount} seat(s). You can only select up to ${remainingQuota} more seat(s). Maximum limit is 4 seats per event.`);
+          } else {
+            setSeatError('You may select a maximum of 4 seats per standard reservation. Switch to Couple Ticket or Group Booking for special offers!');
+          }
+          return;
+        }
+      } else {
+        // Group Mode: allow selecting up to groupMinQuota (10 seats)
+        if (selectedSeatIds.length >= groupMinQuota) {
+          setSeatError(`Group booking is set to ${groupMinQuota} seats. You have selected all ${groupMinQuota} seats!`);
+          return;
+        }
       }
       setSelectedSeatIds((prev) => [...prev, seatId]);
     }
@@ -178,15 +201,31 @@ const EventDetails = () => {
       return;
     }
 
-    if (userBookedCount >= 4) {
+    if (!isGroupMode && userBookedCount >= 4) {
       setSeatError('You already booked your max seats for this event. Maximum limit is 4 seats per event.');
       return;
     }
 
     const remainingQuota = Math.max(0, 4 - userBookedCount);
-    if (selectedSeatIds.length > remainingQuota) {
+    if (!isGroupMode && selectedSeatIds.length > remainingQuota) {
       setSeatError(`You can only book up to ${remainingQuota} more seat(s) for this event. Maximum limit is 4 seats per event.`);
       return;
+    }
+
+    if (isGroupMode && selectedSeatIds.length < groupMinQuota) {
+      setSeatError(`Please select ${groupMinQuota} seats on the grid to complete your Group Booking (currently selected: ${selectedSeatIds.length}/${groupMinQuota}).`);
+      return;
+    }
+
+    if (isCoupleMode) {
+      if (!coupleDisclaimerAgreed) {
+        setShowCoupleModal(true);
+        return;
+      }
+      if (selectedSeatIds.length !== 2) {
+        setSeatError('Please select exactly 2 seats on the grid for 1 Boy and 1 Girl to book your Couple Ticket.');
+        return;
+      }
     }
 
     if (!isAuthenticated) {
@@ -205,7 +244,10 @@ const EventDetails = () => {
       setSeatError('');
       setSuccessMessage('');
 
-      const res = await holdApi.createHold(currentEventId, selectedSeatIds);
+      const res = await holdApi.createHold(currentEventId, selectedSeatIds, {
+        isCoupleBooking: isCoupleMode,
+        coupleDisclaimerAccepted: isCoupleMode ? coupleDisclaimerAgreed : false
+      });
       if (res.success) {
         setActiveHold(res.data);
         setSelectedSeatIds([]);
@@ -340,15 +382,42 @@ const EventDetails = () => {
   const availableSeatsCount = seats.filter((s) => s.status === 'AVAILABLE').length;
   const totalSeatsCount = event?.totalSeats || seats.length;
   const isSoldOut = availableSeatsCount === 0;
-  const isMaxSeatsReached = userBookedCount >= 4;
-  const canBook = !isCompleted && !isSoldOut && !isMaxSeatsReached;
+  const isMaxSeatsReached = userBookedCount >= 4 && !isGroupMode;
+  const canBook = !isCompleted && !isSoldOut && (!isMaxSeatsReached || isGroupMode);
 
-  // Calculate pricing & seat data
+  // Calculate pricing & seat data (with Group Discount for 10+ seats, or Couple Discount for 2 seats)
+  const isCoupleBookingAvailable = event?.isCoupleTicketEnabled !== false;
+  const coupleDiscountPct = event?.coupleDiscountPercentage != null ? event.coupleDiscountPercentage : 40;
+
   const myHeldSeatIds = activeHold ? activeHold.seats.map((s) => s.id || s._id) : [];
   const selectedSeatCount = activeHold ? myHeldSeatIds.length : selectedSeatIds.length;
-  const totalPrice = activeHold
+
+  const isGroupApplied = Boolean(
+    activeHold?.isGroupBooking ||
+    (isGroupBookingAvailable && (selectedSeatCount >= groupMinQuota || (isGroupMode && selectedSeatCount >= groupMinQuota)))
+  );
+
+  const isCoupleApplied = Boolean(
+    activeHold?.isCoupleBooking ||
+    (isCoupleBookingAvailable && isCoupleMode && selectedSeatCount === 2)
+  );
+
+  const pricePerSeat = event?.pricePerSeat || 0;
+  const originalTotalPrice = activeHold?.originalAmount || (selectedSeatCount * pricePerSeat);
+  
+  let activeDiscountPct = 0;
+  if (isGroupApplied) {
+    activeDiscountPct = activeHold?.discountPercentage || groupDiscountPct;
+  } else if (isCoupleApplied) {
+    activeDiscountPct = activeHold?.discountPercentage || coupleDiscountPct;
+  }
+
+  const discountAmount = (isGroupApplied || isCoupleApplied)
+    ? (activeHold?.discountAmount || Math.round((originalTotalPrice * activeDiscountPct) / 100))
+    : 0;
+  const totalPrice = activeHold?.totalAmount != null
     ? activeHold.totalAmount
-    : selectedSeatCount * (event.pricePerSeat || 0);
+    : (originalTotalPrice - discountAmount);
 
   const selectedSeatObjects = activeHold
     ? activeHold.seats
@@ -368,15 +437,31 @@ const EventDetails = () => {
       return;
     }
 
-    if (userBookedCount >= 4) {
+    if (!isGroupMode && userBookedCount >= 4) {
       setSeatError('You already booked your max seats for this event. Maximum limit is 4 seats per event.');
       return;
     }
 
     const remainingQuota = Math.max(0, 4 - userBookedCount);
-    if (selectedSeatIds.length > remainingQuota) {
+    if (!isGroupMode && selectedSeatIds.length > remainingQuota) {
       setSeatError(`You can only book up to ${remainingQuota} more seat(s) for this event. Maximum limit is 4 seats per event.`);
       return;
+    }
+
+    if (isGroupMode && selectedSeatIds.length < groupMinQuota) {
+      setSeatError(`Please select ${groupMinQuota} seats on the grid to complete your Group Booking (currently selected: ${selectedSeatIds.length}/${groupMinQuota}).`);
+      return;
+    }
+
+    if (isCoupleMode) {
+      if (!coupleDisclaimerAgreed) {
+        setShowCoupleModal(true);
+        return;
+      }
+      if (selectedSeatIds.length !== 2) {
+        setSeatError('Please select exactly 2 seats on the grid for 1 Boy and 1 Girl to book your Couple Ticket.');
+        return;
+      }
     }
 
     if (!canBook) return;
@@ -406,7 +491,10 @@ const EventDetails = () => {
       setIsBooking(true);
       setBookingError('');
 
-      const res = await bookingApi.createBooking(currentEventId, selectedSeatIds);
+      const res = await bookingApi.createBooking(currentEventId, selectedSeatIds, {
+        isCoupleBooking: isCoupleMode,
+        coupleDisclaimerAccepted: isCoupleMode ? coupleDisclaimerAgreed : false
+      });
       if (res.success && res.data) {
         setConfirmedBooking(res.data);
         const bookedCount = res.data.seats ? res.data.seats.length : selectedSeatIds.length;
@@ -426,12 +514,44 @@ const EventDetails = () => {
   };
 
   return (
-    <div className="space-y-8 animate-fadeIn">
+    <div
+      className={`space-y-8 animate-fadeIn relative transition-all duration-700 ${
+        isCoupleMode
+          ? 'bg-gradient-to-b from-rose-50/80 via-pink-50/40 to-rose-100/50 -mx-2 sm:-mx-4 px-2 sm:px-4 py-4 rounded-3xl'
+          : ''
+      }`}
+    >
+      {/* Floating Hearts & Ambient Romantic Background when Couple Mode is active */}
+      {isCoupleMode && (
+        <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
+          <div className="absolute top-12 left-10 w-80 h-80 bg-rose-300/20 rounded-full blur-3xl animate-pulseRomantic" />
+          <div className="absolute bottom-12 right-10 w-96 h-96 bg-pink-300/20 rounded-full blur-3xl animate-pulseRomantic" />
+          {[...Array(12)].map((_, i) => (
+            <span
+              key={i}
+              className="absolute text-rose-400/40 select-none pointer-events-none animate-floatSlow"
+              style={{
+                left: `${(i * 8.2 + 3) % 94}%`,
+                bottom: '-24px',
+                animationDelay: `${(i * 0.45) % 4}s`,
+                fontSize: `${16 + (i % 4) * 8}px`
+              }}
+            >
+              {i % 3 === 0 ? '❤️' : i % 3 === 1 ? '💖' : '💕'}
+            </span>
+          ))}
+        </div>
+      )}
+
       {/* Back button link */}
-      <div>
+      <div className="relative z-10">
         <Link
           to={category ? `/events/${category.toLowerCase()}` : '/events'}
-          className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-500 hover:text-sky-600 transition"
+          className={`inline-flex items-center gap-1.5 text-xs font-bold transition ${
+            isCoupleMode
+              ? 'text-rose-700 hover:text-rose-900'
+              : 'text-slate-500 hover:text-sky-600'
+          }`}
         >
           <ArrowLeft className="w-3.5 h-3.5" />
           <span>
@@ -442,8 +562,44 @@ const EventDetails = () => {
         </Link>
       </div>
 
+      {/* Romantic Couple Mode Top Banner */}
+      {isCoupleMode && (
+        <div className="relative z-10 overflow-hidden rounded-3xl bg-gradient-to-r from-rose-950 via-pink-900 to-rose-900 text-white p-5 sm:p-6 shadow-xl border border-rose-300/40 animate-fadeIn">
+          <div className="relative z-10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-3.5">
+              <div className="p-3 bg-white/10 rounded-2xl border border-white/20 text-rose-300 shadow-inner shrink-0 animate-pulse">
+                <Heart className="w-6 h-6 fill-rose-400 text-rose-400" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-xs font-black uppercase tracking-wider bg-rose-500 text-white px-2.5 py-0.5 rounded-full border border-rose-300 shadow-xs">
+                    💖 Couple Love Edition
+                  </span>
+                  <span className="text-xs font-bold text-rose-200">
+                    Special Date Night Offer • {coupleDiscountPct}% OFF
+                  </span>
+                </div>
+                <p className="text-sm font-semibold text-rose-100 mt-1 italic">
+                  "Two souls, one rhythm, and an unforgettable evening under the lights. Celebrate your love tonight!" 💑✨
+                </p>
+              </div>
+            </div>
+            <div className="px-3.5 py-1.5 bg-white/10 backdrop-blur-md rounded-2xl border border-white/20 text-xs font-bold text-rose-200 self-start sm:self-center shrink-0">
+              <span>Strictly 1 Boy + 1 Girl at Gate</span>
+            </div>
+          </div>
+          <div className="absolute -right-6 -bottom-6 w-36 h-36 bg-pink-500/20 rounded-full blur-2xl pointer-events-none" />
+        </div>
+      )}
+
       {/* Event Header Card */}
-      <div className="bg-white/95 backdrop-blur-xl rounded-3xl border border-slate-200/80 overflow-hidden shadow-md shadow-slate-200/40">
+      <div
+        className={`relative z-10 rounded-3xl border overflow-hidden shadow-md transition-all duration-500 ${
+          isCoupleMode
+            ? 'bg-white/95 border-rose-300 shadow-rose-400/20 ring-2 ring-rose-200/50'
+            : 'bg-white/95 backdrop-blur-xl border-slate-200/80 shadow-slate-200/40'
+        }`}
+      >
         {event.imageUrl && (
           <div className="relative h-48 sm:h-72 w-full overflow-hidden bg-slate-950">
             <img
@@ -834,17 +990,179 @@ const EventDetails = () => {
       {/* Main Grid & Reservation Summary Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
         {/* Left Column: Interactive Seat Grid */}
-        <div className="lg:col-span-2 bg-white/95 backdrop-blur-xl rounded-3xl border border-slate-200/80 p-6 sm:p-8 shadow-md shadow-slate-200/40 space-y-6">
+        <div
+          className={`lg:col-span-2 rounded-3xl border p-6 sm:p-8 space-y-6 transition-all duration-500 ${
+            isCoupleMode
+              ? 'bg-white/95 border-rose-300 shadow-xl shadow-rose-300/25 ring-2 ring-rose-200/50'
+              : 'bg-white/95 backdrop-blur-xl border-slate-200/80 shadow-md shadow-slate-200/40'
+          }`}
+        >
+          {/* Special Offers & Mode Switcher (Group & Couple Tickets) */}
+          {(isGroupBookingAvailable || isCoupleBookingAvailable) && (
+            <div className="p-4 rounded-2xl bg-gradient-to-r from-amber-50 via-rose-50 to-sky-50 border border-slate-200 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className={`w-10 h-10 rounded-xl flex items-center justify-center shadow-md shrink-0 ${
+                  isCoupleMode
+                    ? 'bg-rose-500 text-white shadow-rose-500/20'
+                    : isGroupMode
+                    ? 'bg-amber-500 text-white shadow-amber-500/20'
+                    : 'bg-sky-500 text-white shadow-sky-500/20'
+                }`}>
+                  {isCoupleMode ? (
+                    <Heart className="w-5 h-5 fill-white" />
+                  ) : isGroupMode ? (
+                    <Users className="w-5 h-5" />
+                  ) : (
+                    <Ticket className="w-5 h-5" />
+                  )}
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-extrabold text-slate-900 text-sm">
+                      {isCoupleMode
+                        ? 'Couple Ticket Mode'
+                        : isGroupMode
+                        ? 'Group Booking Offer'
+                        : 'Choose Booking Option'}
+                    </span>
+                    {isCoupleMode && coupleDiscountPct > 0 && (
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-rose-600 text-white shadow-xs">
+                        {coupleDiscountPct}% COUPLE OFF
+                      </span>
+                    )}
+                    {isGroupMode && groupDiscountPct > 0 && (
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-600 text-white shadow-xs">
+                        {groupDiscountPct}% GROUP OFF
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-slate-600 mt-0.5">
+                    {isCoupleMode ? (
+                      <span>Strictly <strong>1 Boy + 1 Girl</strong> • Must arrive together at gate for entry</span>
+                    ) : isGroupMode ? (
+                      <span>Book <strong>{groupMinQuota} seats</strong> & get <strong>{groupDiscountPct}% OFF</strong> on your tickets!</span>
+                    ) : (
+                      <span>Select Standard, Couple Pass, or Group Booking for special admission offers</span>
+                    )}
+                  </p>
+                </div>
+              </div>
+
+              {/* Mode Toggle Pills */}
+              <div className="inline-flex p-1 bg-white/90 rounded-xl border border-slate-200/90 shadow-xs shrink-0 self-start sm:self-auto flex-wrap gap-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsCoupleMode(false);
+                    setIsGroupMode(false);
+                    setSeatError('');
+                    if (selectedSeatIds.length > 4) {
+                      setSelectedSeatIds(selectedSeatIds.slice(0, 4));
+                    }
+                  }}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                    !isGroupMode && !isCoupleMode
+                      ? 'bg-sky-600 text-white shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                  }`}
+                >
+                  Standard (1–4)
+                </button>
+
+                {isCoupleBookingAvailable && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!coupleDisclaimerAgreed) {
+                        setShowCoupleModal(true);
+                      } else {
+                        setIsCoupleMode(true);
+                        setIsGroupMode(false);
+                        setSeatError('');
+                        if (selectedSeatIds.length > 2) {
+                          setSelectedSeatIds(selectedSeatIds.slice(0, 2));
+                        }
+                      }
+                    }}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                      isCoupleMode
+                        ? 'bg-rose-600 text-white shadow-xs'
+                        : 'text-rose-700 hover:bg-rose-50'
+                    }`}
+                  >
+                    <Heart className={`w-3.5 h-3.5 ${isCoupleMode ? 'fill-white' : 'text-rose-600 fill-rose-600'}`} />
+                    <span>Couple (1 Boy + 1 Girl)</span>
+                  </button>
+                )}
+
+                {isGroupBookingAvailable && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsCoupleMode(false);
+                      setIsGroupMode(true);
+                      setSeatError('');
+                    }}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                      isGroupMode
+                        ? 'bg-emerald-600 text-white shadow-xs'
+                        : 'text-emerald-700 hover:bg-emerald-50'
+                    }`}
+                  >
+                    <Users className="w-3.5 h-3.5" />
+                    <span>Group ({groupMinQuota} People)</span>
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Couple Mode Mandatory Warning Alert Box */}
+          {isCoupleMode && (
+            <div className="p-4 bg-rose-50 border-2 border-rose-300 rounded-2xl text-rose-950 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 animate-fadeIn">
+              <div className="flex items-start gap-3">
+                <div className="p-2 bg-rose-200/70 rounded-xl shrink-0 mt-0.5">
+                  <Heart className="w-5 h-5 text-rose-700 fill-rose-700" />
+                </div>
+                <div>
+                  <h4 className="text-xs font-black text-rose-950 uppercase tracking-wider flex items-center gap-2">
+                    <span>⚠️ Couple Ticket Entry Condition: Must be 1 Boy & 1 Girl</span>
+                  </h4>
+                  <p className="text-xs text-rose-800 mt-1 leading-relaxed">
+                    This ticket is only for a couple. When you buy this ticket and reach the event venue, if you do not have a girl standing with you, <strong>NO ENTRY</strong> will be permitted inside the event under any circumstance!
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowCoupleModal(true)}
+                className="px-3 py-1.5 rounded-xl bg-white text-rose-700 border border-rose-200 text-xs font-bold hover:bg-rose-100 transition shrink-0"
+              >
+                Read Gate Policy
+              </button>
+            </div>
+          )}
+
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
             <div>
-              <h2 className="text-lg font-bold text-slate-900">Select Seats</h2>
+              <h2 className="text-lg font-bold text-slate-900">
+                {isCoupleMode
+                  ? 'Couple Ticket (Select 2 Seats for 1 Boy + 1 Girl)'
+                  : isGroupMode
+                  ? `Group Booking (${groupMinQuota} Seats)`
+                  : 'Select Seats'}
+              </h2>
               <p className="text-xs text-slate-500">
                 {canBook
-                  ? 'Click up to 4 available seats to book tickets'
+                  ? isCoupleMode
+                    ? 'Select exactly 2 seats on the grid for your couple pass (1 Boy & 1 Girl required at gate)'
+                    : isGroupMode
+                    ? `Select ${groupMinQuota} available seats on the map to unlock your ${groupDiscountPct}% group discount`
+                    : 'Click up to 4 available seats to book tickets'
                   : 'Seat selection is closed for this event'}
               </p>
             </div>
-            <SeatLegend />
+            <SeatLegend isCoupleMode={isCoupleMode} />
           </div>
 
           {/* In-place Seat Selection Error Alert */}
@@ -876,6 +1194,7 @@ const EventDetails = () => {
               onToggleSeat={handleToggleSeat}
               myHeldSeatIds={myHeldSeatIds}
               disabled={!canBook || Boolean(activeHold) || actionLoading || isBooking}
+              isCoupleMode={isCoupleMode}
             />
           </div>
 
@@ -899,11 +1218,30 @@ const EventDetails = () => {
           )}
 
           {/* Booking Summary Card */}
-          <div className="bg-white/95 backdrop-blur-xl rounded-3xl border border-slate-200/80 p-6 shadow-lg shadow-slate-200/50 space-y-6">
-            <h3 className="text-base font-bold text-slate-900 border-b border-slate-100 pb-3 flex items-center justify-between">
-              <span>Reservation Summary</span>
-              <span className="text-xs font-semibold text-slate-400">
-                {userBookedCount > 0 ? `${userBookedCount}/4 booked • ` : ''}{selectedSeatCount} / {Math.max(0, 4 - userBookedCount)} seats
+          <div
+            className={`rounded-3xl border p-6 shadow-lg space-y-6 transition-all duration-500 ${
+              isCoupleMode
+                ? 'bg-gradient-to-b from-white via-rose-50/40 to-pink-50/50 border-2 border-rose-300 shadow-rose-300/30 ring-1 ring-rose-200'
+                : 'bg-white/95 backdrop-blur-xl border-slate-200/80 shadow-slate-200/50'
+            }`}
+          >
+            <h3
+              className={`text-base font-bold border-b pb-3 flex items-center justify-between ${
+                isCoupleMode
+                  ? 'text-rose-950 border-rose-100'
+                  : 'text-slate-900 border-slate-100'
+              }`}
+            >
+              <span className="flex items-center gap-1.5">
+                {isCoupleMode && <Heart className="w-4 h-4 fill-rose-500 text-rose-500 animate-pulse" />}
+                <span>{isCoupleMode ? 'Couple Date Reservation' : 'Reservation Summary'}</span>
+              </span>
+              <span className={`text-xs font-semibold ${isCoupleMode ? 'text-rose-700' : 'text-slate-400'}`}>
+                {isGroupMode
+                  ? `${selectedSeatCount} / ${groupMinQuota} group seats`
+                  : isCoupleMode
+                  ? `${selectedSeatCount} / 2 couple seats`
+                  : `${userBookedCount > 0 ? `${userBookedCount}/4 booked • ` : ''}${selectedSeatCount} / ${Math.max(0, 4 - userBookedCount)} seats`}
               </span>
             </h3>
 
@@ -954,19 +1292,77 @@ const EventDetails = () => {
               {/* Automatic Calculation Formula */}
               {selectedSeatCount > 0 && (
                 <div className="flex justify-between items-center text-xs text-slate-600 bg-slate-50 px-3 py-2 rounded-xl border border-slate-100">
-                  <span className="font-medium text-slate-500">Auto Calculation:</span>
+                  <span className="font-medium text-slate-500">Base Calculation:</span>
                   <span className="font-mono font-bold text-slate-800">
-                    {selectedSeatCount} × {formatCurrency(event.pricePerSeat)} = {formatCurrency(totalPrice)}
+                    {selectedSeatCount} × {formatCurrency(event.pricePerSeat)} = {formatCurrency(originalTotalPrice)}
                   </span>
+                </div>
+              )}
+
+              {/* Group or Couple Discount Deduction Row */}
+              {isGroupApplied && discountAmount > 0 && (
+                <div className="flex items-center justify-between p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl text-xs font-bold text-emerald-800 animate-fadeIn">
+                  <span className="flex items-center gap-1.5">
+                    <Users className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                    <span>Group Offer ({activeDiscountPct}% OFF):</span>
+                  </span>
+                  <span>-{formatCurrency(discountAmount)}</span>
+                </div>
+              )}
+
+              {isCoupleApplied && discountAmount > 0 && (
+                <div className="flex items-center justify-between p-2.5 bg-rose-50 border border-rose-200 rounded-xl text-xs font-bold text-rose-800 animate-fadeIn">
+                  <span className="flex items-center gap-1.5">
+                    <Heart className="w-3.5 h-3.5 text-rose-600 fill-rose-600 shrink-0" />
+                    <span>Couple Offer ({activeDiscountPct}% OFF):</span>
+                  </span>
+                  <span>-{formatCurrency(discountAmount)}</span>
+                </div>
+              )}
+
+              {/* Couple Romantic Message & Policy Banner in Summary */}
+              {isCoupleMode && (
+                <div className="p-3.5 bg-gradient-to-r from-rose-50 via-pink-50 to-rose-100/70 border border-rose-300/80 rounded-2xl text-xs text-rose-950 space-y-2 animate-fadeIn shadow-2xs">
+                  <div className="flex items-center gap-1.5 font-black text-rose-900">
+                    <Heart className="w-4 h-4 text-rose-600 fill-rose-600 shrink-0 animate-pulse" />
+                    <span>A Special Night Made For Two ❤️</span>
+                  </div>
+                  <p className="text-[11px] text-rose-800 italic leading-relaxed">
+                    "Every moment spent together becomes a treasured memory. May this evening bring your hearts even closer!" 💑✨
+                  </p>
+                  <div className="pt-1.5 border-t border-rose-200/70 flex items-center justify-between text-[10px] text-rose-700 font-extrabold">
+                    <span>⚡ 40% Couple Offer Applied</span>
+                    <span>1 Boy + 1 Girl Mandatory</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Celebration Banner for Group Mode */}
+              {isGroupMode && selectedSeatCount < groupMinQuota && (
+                <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-xl text-[11px] text-amber-800 font-semibold flex items-center gap-1.5">
+                  <Users className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                  <span>Select {groupMinQuota - selectedSeatCount} more seat(s) to unlock {groupDiscountPct}% discount!</span>
                 </div>
               )}
 
               <div className="border-t border-slate-100 pt-3 flex justify-between items-center">
                 <div>
                   <span className="text-base font-bold text-slate-900 block">Total Amount</span>
-                  <span className="text-[11px] text-slate-400">Server verified price</span>
+                  <span className="text-[11px] text-slate-400">
+                    {discountAmount > 0
+                      ? isCoupleMode
+                        ? `Saved ${formatCurrency(discountAmount)} with 40% Couple Discount`
+                        : `Saved ${formatCurrency(discountAmount)} with Group Discount`
+                      : 'Server verified price'}
+                  </span>
                 </div>
-                <span className="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-sky-600 to-indigo-600">
+                <span
+                  className={`text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r ${
+                    isCoupleMode
+                      ? 'from-rose-600 via-pink-600 to-rose-600'
+                      : 'from-sky-600 to-indigo-600'
+                  }`}
+                >
                   {formatCurrency(totalPrice)}
                 </span>
               </div>
@@ -1014,23 +1410,43 @@ const EventDetails = () => {
                 </button>
               ) : !activeHold ? (
                 <>
-                  <div className="text-xs text-emerald-700 font-semibold flex items-center gap-1.5 px-1 pb-0.5">
-                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping shrink-0" />
-                    <span>Seat bookings open now! Closes at {timing.closeTime}</span>
+                  <div className={`text-xs font-semibold flex items-center gap-1.5 px-1 pb-0.5 ${
+                    isCoupleMode ? 'text-rose-700' : 'text-emerald-700'
+                  }`}>
+                    <span className={`w-2 h-2 rounded-full animate-ping shrink-0 ${
+                      isCoupleMode ? 'bg-rose-500' : 'bg-emerald-500'
+                    }`} />
+                    <span>
+                      {isCoupleMode
+                        ? `Couple seats open! Special 40% discount applied.`
+                        : `Seat bookings open now! Closes at ${timing.closeTime}`}
+                    </span>
                   </div>
                   <button
                     type="button"
                     onClick={handleBookNow}
                     disabled={selectedSeatIds.length === 0 || actionLoading || isBooking}
-                    className="w-full py-3.5 px-4 rounded-2xl text-sm font-bold text-white bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 shadow-lg shadow-sky-600/25 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98]"
+                    className={`w-full py-3.5 px-4 rounded-2xl text-sm font-black transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98] ${
+                      isCoupleMode
+                        ? 'text-white bg-gradient-to-r from-rose-600 via-pink-600 to-rose-500 hover:from-rose-500 hover:to-pink-500 shadow-lg shadow-rose-600/30 ring-2 ring-rose-300/40'
+                        : 'text-white bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 shadow-lg shadow-sky-600/25'
+                    }`}
                   >
                     {isBooking ? (
                       <span className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
                     ) : (
                       <>
-                        <Ticket className="w-4 h-4" />
+                        {isCoupleMode ? (
+                          <Heart className="w-4 h-4 fill-white" />
+                        ) : (
+                          <Ticket className="w-4 h-4" />
+                        )}
                         <span>
-                          {selectedSeatCount > 0
+                          {isCoupleMode
+                            ? selectedSeatCount === 2
+                              ? `Book Couple Pass (${formatCurrency(totalPrice)})`
+                              : 'Select 2 Seats for Couple Pass'
+                            : selectedSeatCount > 0
                             ? `Book Now (${formatCurrency(totalPrice)})`
                             : 'Select Seats to Book'}
                         </span>
@@ -1042,9 +1458,17 @@ const EventDetails = () => {
                     type="button"
                     onClick={handleHoldSeats}
                     disabled={selectedSeatIds.length === 0 || actionLoading || isBooking}
-                    className="w-full py-2.5 px-4 rounded-2xl text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-200/80 transition-all flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98]"
+                    className={`w-full py-2.5 px-4 rounded-2xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98] ${
+                      isCoupleMode
+                        ? 'text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200'
+                        : 'text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-200/80'
+                    }`}
                   >
-                    <Clock className="w-3.5 h-3.5 text-slate-500" />
+                    {isCoupleMode ? (
+                      <Heart className="w-3.5 h-3.5 text-rose-500 fill-rose-500" />
+                    ) : (
+                      <Clock className="w-3.5 h-3.5 text-slate-500" />
+                    )}
                     <span>Hold Seats for 120s First</span>
                   </button>
                 </>
@@ -1116,6 +1540,11 @@ const EventDetails = () => {
         event={event}
         selectedSeats={selectedSeatObjects}
         totalPrice={totalPrice}
+        originalPrice={originalTotalPrice}
+        isGroupBooking={isGroupApplied}
+        isCoupleBooking={isCoupleApplied || isCoupleMode || Boolean(activeHold?.isCoupleBooking)}
+        discountAmount={discountAmount}
+        discountPercentage={activeDiscountPct}
         onConfirmBooking={handleConfirmDirectBooking}
         isConfirming={isBooking}
         error={bookingError}
@@ -1124,6 +1553,105 @@ const EventDetails = () => {
         onExploreEvents={() => navigate('/events')}
         activeHold={activeHold}
       />
+
+      {/* Strict Couple Admission Condition Modal */}
+      {showCoupleModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm animate-fadeIn">
+          <div className="bg-white rounded-3xl shadow-2xl border border-rose-200 max-w-lg w-full overflow-hidden transition-all duration-300">
+            {/* Modal Header */}
+            <div className="px-6 py-4 bg-gradient-to-r from-rose-600 via-pink-600 to-rose-600 text-white flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 bg-white/20 rounded-xl backdrop-blur-md">
+                  <Heart className="w-5 h-5 text-white fill-white" />
+                </div>
+                <div>
+                  <h3 className="text-base sm:text-lg font-black tracking-tight">Strict Couple Ticket Policy</h3>
+                  <span className="text-[11px] text-rose-100 font-semibold block -mt-0.5">1 Boy + 1 Girl Entry Requirement</span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowCoupleModal(false)}
+                className="text-white/80 hover:text-white p-1 rounded-lg hover:bg-white/10"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 space-y-4">
+              {/* Important Warning Banner */}
+              <div className="p-4 bg-rose-50 border-2 border-rose-300 rounded-2xl text-rose-950 space-y-2">
+                <div className="flex items-center gap-2 text-rose-700 font-black text-sm">
+                  <AlertTriangle className="w-5 h-5 text-rose-600 shrink-0" />
+                  <span>CONDITION: MUST BE 1 GIRL && 1 BOY • NO OTHER ENTRY ALLOWED</span>
+                </div>
+                <p className="text-xs sm:text-sm font-bold text-rose-900 leading-relaxed">
+                  This ticket is strictly for a couple (1 Boy + 1 Girl). Single attendees, all-male groups, or other combinations are not permitted to book or enter with this ticket.
+                </p>
+              </div>
+
+              {/* Strict Gate Notice */}
+              <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl text-slate-700 space-y-2 text-xs sm:text-sm">
+                <h4 className="font-extrabold text-slate-900 flex items-center gap-1.5">
+                  <ShieldCheck className="w-4 h-4 text-rose-600" />
+                  <span>Gate Admission Rule:</span>
+                </h4>
+                <p className="text-slate-700 leading-relaxed">
+                  When you buy this ticket and reach the event venue, both partners must stand together at the gate.
+                  <strong className="text-rose-700 block mt-1.5 p-2 bg-rose-100/70 rounded-xl border border-rose-200">
+                    If you arrive at the event and do not have a girl standing with you, NO ENTRY will be permitted inside the event under any circumstance, and no refund will be issued!
+                  </strong>
+                </p>
+              </div>
+
+              {/* Confirmation Checkbox */}
+              <label className="flex items-start gap-3 p-3.5 rounded-2xl bg-rose-50/50 border border-rose-200 cursor-pointer hover:bg-rose-50 transition">
+                <input
+                  type="checkbox"
+                  checked={coupleDisclaimerAgreed}
+                  onChange={(e) => setCoupleDisclaimerAgreed(e.target.checked)}
+                  className="mt-0.5 w-4 h-4 text-rose-600 rounded border-slate-300 focus:ring-rose-500 shrink-0 cursor-pointer"
+                />
+                <span className="text-xs font-bold text-slate-800 leading-tight">
+                  I understand and agree that this is strictly a couple ticket (1 Boy & 1 Girl). I confirm I will reach the venue with a female companion, and understand entry will be denied without her with NO refund.
+                </span>
+              </label>
+
+              {/* Action Buttons */}
+              <div className="flex flex-col-reverse sm:flex-row items-center justify-end gap-2.5 pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowCoupleModal(false);
+                    setIsCoupleMode(false);
+                  }}
+                  className="w-full sm:w-auto px-4 py-2.5 rounded-xl text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 transition"
+                >
+                  Cancel / Choose Standard Ticket
+                </button>
+                <button
+                  type="button"
+                  disabled={!coupleDisclaimerAgreed}
+                  onClick={() => {
+                    setIsCoupleMode(true);
+                    setIsGroupMode(false);
+                    setShowCoupleModal(false);
+                    setSeatError('');
+                    if (selectedSeatIds.length > 2) {
+                      setSelectedSeatIds(selectedSeatIds.slice(0, 2));
+                    }
+                  }}
+                  className="w-full sm:w-auto px-5 py-2.5 rounded-xl text-xs font-black text-white bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-500 hover:to-pink-500 disabled:opacity-40 disabled:cursor-not-allowed shadow-md shadow-rose-600/25 transition active:scale-95 flex items-center justify-center gap-1.5"
+                >
+                  <Heart className="w-4 h-4 fill-white" />
+                  <span>I Agree & Select Couple Seats (2 Seats)</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

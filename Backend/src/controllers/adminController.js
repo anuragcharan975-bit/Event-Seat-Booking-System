@@ -178,7 +178,12 @@ const createEvent = asyncHandler(async (req, res) => {
     category: category || 'Other',
     imageUrl: imageUrl || '',
     totalSeats: seatCount,
-    status: eventStatus
+    status: eventStatus,
+    isGroupBookingEnabled: req.body.isGroupBookingEnabled !== undefined ? Boolean(req.body.isGroupBookingEnabled) : true,
+    groupMinSeats: req.body.groupMinSeats ? Number(req.body.groupMinSeats) : 10,
+    groupDiscountPercentage: req.body.groupDiscountPercentage != null ? Number(req.body.groupDiscountPercentage) : 10,
+    isCoupleTicketEnabled: req.body.isCoupleTicketEnabled !== undefined ? Boolean(req.body.isCoupleTicketEnabled) : true,
+    coupleDiscountPercentage: req.body.coupleDiscountPercentage != null ? Number(req.body.coupleDiscountPercentage) : 40
   });
 
   // Generate standard 4-row seat grid (A, B, C, D)
@@ -277,6 +282,21 @@ const updateEvent = asyncHandler(async (req, res) => {
   if (imageUrl !== undefined) event.imageUrl = imageUrl;
   if (req.body.status && ['Pending', 'In Progress', 'Completed'].includes(req.body.status)) {
     event.status = req.body.status;
+  }
+  if (req.body.isGroupBookingEnabled !== undefined) {
+    event.isGroupBookingEnabled = Boolean(req.body.isGroupBookingEnabled);
+  }
+  if (req.body.groupMinSeats != null) {
+    event.groupMinSeats = Math.max(2, Number(req.body.groupMinSeats));
+  }
+  if (req.body.groupDiscountPercentage != null) {
+    event.groupDiscountPercentage = Math.max(0, Math.min(100, Number(req.body.groupDiscountPercentage)));
+  }
+  if (req.body.isCoupleTicketEnabled !== undefined) {
+    event.isCoupleTicketEnabled = Boolean(req.body.isCoupleTicketEnabled);
+  }
+  if (req.body.coupleDiscountPercentage != null) {
+    event.coupleDiscountPercentage = Math.max(0, Math.min(100, Number(req.body.coupleDiscountPercentage)));
   }
 
   await event.save();

@@ -300,7 +300,12 @@ const getEvents = asyncHandler(async (req, res) => {
         seatStatus: effectiveStatus,
         isSoldOut: availableSeats === 0,
         averageRating: event.averageRating || 0,
-        totalReviews: event.totalReviews || 0
+        totalReviews: event.totalReviews || 0,
+        isGroupBookingEnabled: event.isGroupBookingEnabled !== false,
+        groupMinSeats: event.groupMinSeats || 10,
+        groupDiscountPercentage: event.groupDiscountPercentage || 10,
+        isCoupleTicketEnabled: event.isCoupleTicketEnabled !== false,
+        coupleDiscountPercentage: event.coupleDiscountPercentage != null ? event.coupleDiscountPercentage : 40
       };
     })
   );
@@ -384,7 +389,12 @@ const getEventSeats = asyncHandler(async (req, res) => {
       status: (event.endTime && new Date(event.endTime) <= now) || event.status === 'Completed' ? 'Completed' : (event.status || 'Pending'),
       eventStatus: (event.endTime && new Date(event.endTime) <= now) || event.status === 'Completed' ? 'Completed' : (event.status || 'Pending'),
       averageRating: event.averageRating || 0,
-      totalReviews: event.totalReviews || 0
+      totalReviews: event.totalReviews || 0,
+      isGroupBookingEnabled: event.isGroupBookingEnabled !== false,
+      groupMinSeats: event.groupMinSeats || 10,
+      groupDiscountPercentage: event.groupDiscountPercentage || 10,
+      isCoupleTicketEnabled: event.isCoupleTicketEnabled !== false,
+      coupleDiscountPercentage: event.coupleDiscountPercentage != null ? event.coupleDiscountPercentage : 40
     },
     seats: seatGrid
   });
@@ -502,7 +512,12 @@ const getEventBySlug = asyncHandler(async (req, res) => {
       status: (event.endTime && new Date(event.endTime) <= now) || event.status === 'Completed' ? 'Completed' : (event.status || 'Pending'),
       eventStatus: (event.endTime && new Date(event.endTime) <= now) || event.status === 'Completed' ? 'Completed' : (event.status || 'Pending'),
       averageRating: event.averageRating || 0,
-      totalReviews: event.totalReviews || 0
+      totalReviews: event.totalReviews || 0,
+      isGroupBookingEnabled: event.isGroupBookingEnabled !== false,
+      groupMinSeats: event.groupMinSeats || 10,
+      groupDiscountPercentage: event.groupDiscountPercentage || 10,
+      isCoupleTicketEnabled: event.isCoupleTicketEnabled !== false,
+      coupleDiscountPercentage: event.coupleDiscountPercentage != null ? event.coupleDiscountPercentage : 40
     },
     seats: seatGrid
   });

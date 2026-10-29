@@ -12,7 +12,7 @@ const validateCreateHold = [
     .notEmpty().withMessage('Event ID is required')
     .isMongoId().withMessage('Event ID must be a valid MongoDB ObjectId'),
   body('seatIds')
-    .isArray({ min: 1, max: 4 }).withMessage('You must select between 1 and 4 seats')
+    .isArray({ min: 1, max: 20 }).withMessage('You must select between 1 and 20 seats')
     .custom((seatIds) => {
       // Validate each element is a valid MongoDB ObjectId
       for (const id of seatIds) {

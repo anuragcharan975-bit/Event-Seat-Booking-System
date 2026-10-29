@@ -12,7 +12,8 @@ import {
   Home,
   Menu,
   X,
-  Sparkles
+  Sparkles,
+  QrCode
 } from 'lucide-react';
 
 const Navbar = () => {
@@ -39,16 +40,17 @@ const Navbar = () => {
   const isBookingsActive = location.pathname === '/my-bookings';
   const isProfileActive = location.pathname === '/profile';
   const isAdminActive = location.pathname.startsWith('/system-console-r6t8');
+  const isVerifyActive = location.pathname === '/verify-ticket';
 
   const userInitial = (user?.name || 'U')[0].toUpperCase();
 
   return (
-    <header className="sticky top-0 z-40 bg-white/80 backdrop-blur-xl border-b border-slate-200/70 shadow-xs transition-all">
+    <header className="sticky top-0 z-40 bg-white/80 backdrop-blur-2xl border-b border-slate-200/60 shadow-xs transition-all">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           {/* Logo & Brand with Modern Glow */}
           <Link to="/" className="flex items-center gap-2.5 group">
-            <div className="p-2.5 bg-gradient-to-tr from-sky-600 to-indigo-600 rounded-2xl text-white shadow-md shadow-sky-600/25 group-hover:scale-105 group-hover:shadow-sky-600/40 transition-all duration-300">
+            <div className="p-2.5 bg-gradient-to-tr from-sky-600 via-indigo-600 to-purple-600 rounded-2xl text-white shadow-md shadow-sky-600/25 group-hover:scale-105 group-hover:shadow-sky-600/40 transition-all duration-300">
               <Ticket className="w-5 h-5" />
             </div>
             <div className="flex flex-col">
@@ -62,13 +64,13 @@ const Navbar = () => {
           </Link>
 
           {/* Desktop Navigation Links */}
-          <nav className="hidden md:flex items-center gap-1.5">
+          <nav className="hidden md:flex items-center gap-1">
             <Link
               to="/"
               className={`px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all flex items-center gap-2 ${
                 isHomeActive
-                  ? 'bg-sky-50 text-sky-700 font-bold shadow-xs border border-sky-100'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80'
+                  ? 'bg-sky-50 text-sky-700 font-bold shadow-2xs border border-sky-100/80'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/70'
               }`}
             >
               <Home className="w-4 h-4 text-sky-600" />
@@ -79,12 +81,24 @@ const Navbar = () => {
               to="/events"
               className={`px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all flex items-center gap-2 ${
                 isEventsActive
-                  ? 'bg-sky-50 text-sky-700 font-bold shadow-xs border border-sky-100'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80'
+                  ? 'bg-sky-50 text-sky-700 font-bold shadow-2xs border border-sky-100/80'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/70'
               }`}
             >
               <Calendar className="w-4 h-4 text-sky-600" />
               <span>Events</span>
+            </Link>
+
+            <Link
+              to="/verify-ticket"
+              className={`px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all flex items-center gap-2 ${
+                isVerifyActive
+                  ? 'bg-sky-50 text-sky-700 font-bold shadow-2xs border border-sky-100/80'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/70'
+              }`}
+            >
+              <QrCode className="w-4 h-4 text-sky-600" />
+              <span>Verify Ticket</span>
             </Link>
 
             {isAuthenticated ? (
@@ -93,8 +107,8 @@ const Navbar = () => {
                   to="/my-bookings"
                   className={`px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all flex items-center gap-2 ${
                     isBookingsActive
-                      ? 'bg-sky-50 text-sky-700 font-bold shadow-xs border border-sky-100'
-                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80'
+                      ? 'bg-sky-50 text-sky-700 font-bold shadow-2xs border border-sky-100/80'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/70'
                   }`}
                 >
                   <BookmarkCheck className="w-4 h-4 text-sky-600" />
@@ -105,11 +119,11 @@ const Navbar = () => {
                   to="/profile"
                   className={`px-3 py-1.5 rounded-xl text-xs sm:text-sm font-semibold transition-all flex items-center gap-2 ${
                     isProfileActive
-                      ? 'bg-sky-50 text-sky-700 font-bold shadow-xs border border-sky-100'
-                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80'
+                      ? 'bg-sky-50 text-sky-700 font-bold shadow-2xs border border-sky-100/80'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/70'
                   }`}
                 >
-                  <div className="w-6 h-6 rounded-lg bg-gradient-to-tr from-sky-500 to-indigo-600 text-white font-bold text-[11px] flex items-center justify-center shadow-xs">
+                  <div className="w-6 h-6 rounded-lg bg-gradient-to-tr from-sky-500 to-indigo-600 text-white font-bold text-[11px] flex items-center justify-center shadow-xs ring-2 ring-white">
                     {userInitial}
                   </div>
                   <span>Profile</span>
@@ -144,13 +158,13 @@ const Navbar = () => {
               <div className="flex items-center gap-2 pl-2">
                 <Link
                   to="/login"
-                  className="px-3.5 py-2 text-xs sm:text-sm font-semibold text-slate-700 hover:text-sky-600 transition-colors"
+                  className="px-4 py-2 text-xs sm:text-sm font-semibold text-slate-700 hover:text-sky-600 transition-colors"
                 >
                   Sign In
                 </Link>
                 <Link
                   to="/register"
-                  className="px-4 py-2 text-xs sm:text-sm font-bold text-white bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 rounded-xl shadow-md shadow-sky-600/20 transition-all hover:scale-[1.02] active:scale-98"
+                  className="px-4 py-2 text-xs sm:text-sm font-bold text-white bg-gradient-to-r from-sky-600 via-indigo-600 to-purple-600 hover:from-sky-500 hover:to-indigo-500 rounded-xl shadow-md shadow-sky-600/20 transition-all hover:scale-[1.02] active:scale-98"
                 >
                   Get Started
                 </Link>
@@ -200,6 +214,17 @@ const Navbar = () => {
           >
             <Calendar className="w-4 h-4 text-sky-600" />
             <span>Events Catalog</span>
+          </Link>
+
+          <Link
+            to="/verify-ticket"
+            onClick={() => setMobileMenuOpen(false)}
+            className={`w-full px-4 py-2.5 rounded-xl text-sm font-semibold flex items-center gap-2.5 transition ${
+              isVerifyActive ? 'bg-sky-50 text-sky-700 font-bold' : 'text-slate-700 hover:bg-slate-100'
+            }`}
+          >
+            <QrCode className="w-4 h-4 text-sky-600" />
+            <span>Verify Ticket</span>
           </Link>
 
           {isAuthenticated ? (

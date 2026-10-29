@@ -83,6 +83,31 @@ const eventSchema = new mongoose.Schema(
       type: Number,
       default: 0,
       min: 0
+    },
+    isGroupBookingEnabled: {
+      type: Boolean,
+      default: true
+    },
+    groupMinSeats: {
+      type: Number,
+      default: 10,
+      min: 2
+    },
+    groupDiscountPercentage: {
+      type: Number,
+      default: 10,
+      min: 0,
+      max: 100
+    },
+    isCoupleTicketEnabled: {
+      type: Boolean,
+      default: true
+    },
+    coupleDiscountPercentage: {
+      type: Number,
+      default: 40,
+      min: 0,
+      max: 100
     }
   },
   {

@@ -98,30 +98,52 @@ export const downloadTicketPdf = async ({ booking, user = {}, event = null }) =>
   const contentWidth = pageWidth - margin * 2; // 182mm
   let y = 14;
 
+  const isCouple = Boolean(booking.isCoupleBooking);
+
   // Outer Border Box
-  doc.setDrawColor(226, 232, 240); // slate-200
+  if (isCouple) {
+    doc.setDrawColor(251, 113, 133); // rose-400
+  } else {
+    doc.setDrawColor(226, 232, 240); // slate-200
+  }
   doc.setLineWidth(0.6);
   doc.roundedRect(margin, y, contentWidth, 268, 4, 4, 'S');
 
   // =========================================================================
-  // TOP HEADER BANNER (Gradient Dark Indigo)
+  // TOP HEADER BANNER (Gradient Dark Indigo / Romantic Crimson)
   // =========================================================================
   const headerHeight = 36;
-  doc.setFillColor(15, 23, 42); // slate-900
+  if (isCouple) {
+    doc.setFillColor(136, 19, 55); // rose-900 (deep romantic crimson)
+  } else {
+    doc.setFillColor(15, 23, 42); // slate-900
+  }
   doc.roundedRect(margin, y, contentWidth, headerHeight, 4, 4, 'F');
   // Fill square corners on bottom of header
   doc.rect(margin, y + headerHeight - 4, contentWidth, 4, 'F');
 
   // System Brand
-  doc.setTextColor(56, 189, 248); // sky-400
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(10);
-  doc.text('EVENT SEAT BOOKING SYSTEM', margin + 8, y + 10);
+  if (isCouple) {
+    doc.setTextColor(253, 164, 175); // rose-300
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9.5);
+    doc.text('EVENT SEAT BOOKING SYSTEM - COUPLE LOVE EDITION', margin + 8, y + 10);
 
-  // Subtitle
-  doc.setTextColor(248, 250, 252); // slate-50
-  doc.setFontSize(14);
-  doc.text('OFFICIAL ADMISSION E-TICKET', margin + 8, y + 18);
+    // Subtitle
+    doc.setTextColor(255, 241, 242); // rose-50
+    doc.setFontSize(13);
+    doc.text('OFFICIAL COUPLE ADMISSION E-TICKET (1 BOY + 1 GIRL)', margin + 8, y + 18);
+  } else {
+    doc.setTextColor(56, 189, 248); // sky-400
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.text('EVENT SEAT BOOKING SYSTEM', margin + 8, y + 10);
+
+    // Subtitle
+    doc.setTextColor(248, 250, 252); // slate-50
+    doc.setFontSize(14);
+    doc.text('OFFICIAL ADMISSION E-TICKET', margin + 8, y + 18);
+  }
 
   // Booking Reference Pill in Header (Top-Right)
   const refPillWidth = 56;
@@ -129,13 +151,18 @@ export const downloadTicketPdf = async ({ booking, user = {}, event = null }) =>
   const refPillX = margin + contentWidth - refPillWidth - 8;
   const refPillY = y + 8;
 
-  doc.setFillColor(30, 41, 59); // slate-800
-  doc.setDrawColor(51, 65, 85); // slate-700
+  if (isCouple) {
+    doc.setFillColor(76, 5, 25); // rose-950
+    doc.setDrawColor(190, 18, 60); // rose-700
+  } else {
+    doc.setFillColor(30, 41, 59); // slate-800
+    doc.setDrawColor(51, 65, 85); // slate-700
+  }
   doc.setLineWidth(0.3);
   doc.roundedRect(refPillX, refPillY, refPillWidth, refPillHeight, 2, 2, 'FD');
 
   doc.setFontSize(7);
-  doc.setTextColor(148, 163, 184); // slate-400
+  doc.setTextColor(isCouple ? 251 : 148, isCouple ? 113 : 163, isCouple ? 133 : 184);
   doc.text('BOOKING REFERENCE', refPillX + refPillWidth / 2, refPillY + 5, { align: 'center' });
 
   doc.setFontSize(10);
@@ -149,13 +176,23 @@ export const downloadTicketPdf = async ({ booking, user = {}, event = null }) =>
   // EVENT TITLE & CATEGORY SECTION
   // =========================================================================
   // Category Pill
-  doc.setFillColor(240, 249, 255); // sky-50
-  doc.setDrawColor(186, 230, 253); // sky-200
-  doc.roundedRect(margin + 8, y, 32, 6, 1.5, 1.5, 'FD');
-  doc.setFontSize(7.5);
-  doc.setTextColor(3, 105, 161); // sky-700
-  doc.setFont('helvetica', 'bold');
-  doc.text(eventCategory.toUpperCase(), margin + 24, y + 4.2, { align: 'center' });
+  if (isCouple) {
+    doc.setFillColor(255, 241, 242); // rose-50
+    doc.setDrawColor(254, 205, 211); // rose-200
+    doc.roundedRect(margin + 8, y, 48, 6, 1.5, 1.5, 'FD');
+    doc.setFontSize(7.5);
+    doc.setTextColor(225, 29, 72); // rose-600
+    doc.setFont('helvetica', 'bold');
+    doc.text('COUPLE PASS • 40% OFF', margin + 32, y + 4.2, { align: 'center' });
+  } else {
+    doc.setFillColor(240, 249, 255); // sky-50
+    doc.setDrawColor(186, 230, 253); // sky-200
+    doc.roundedRect(margin + 8, y, 32, 6, 1.5, 1.5, 'FD');
+    doc.setFontSize(7.5);
+    doc.setTextColor(3, 105, 161); // sky-700
+    doc.setFont('helvetica', 'bold');
+    doc.text(eventCategory.toUpperCase(), margin + 24, y + 4.2, { align: 'center' });
+  }
 
   // Status Badge (Confirmed or Cancelled)
   const statusWidth = 28;
@@ -265,12 +302,36 @@ export const downloadTicketPdf = async ({ booking, user = {}, event = null }) =>
   // =========================================================================
   // PERFORATED STUB DIVIDER LINE (Realistic Ticket Notch)
   // =========================================================================
-  doc.setDrawColor(203, 213, 225);
+  doc.setDrawColor(isCouple ? 251 : 203, isCouple ? 113 : 213, isCouple ? 133 : 225);
   doc.setLineDashPattern([2, 2], 0);
   doc.line(margin + 6, y, margin + contentWidth - 6, y);
   doc.setLineDashPattern([], 0); // reset dash
 
-  y += 8;
+  y += 7;
+
+  // Romantic Couple Love Note Box for Couple Tickets
+  if (isCouple) {
+    doc.setFillColor(255, 241, 242); // rose-50
+    doc.setDrawColor(251, 113, 133); // rose-400
+    doc.setLineWidth(0.4);
+    doc.roundedRect(margin + 6, y, contentWidth - 12, 11.5, 2, 2, 'FD');
+
+    doc.setFontSize(7.5);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(159, 18, 57); // rose-900
+    doc.text('COUPLE LOVE NOTE: A Special Night Made For Two', margin + 11, y + 4.2);
+
+    doc.setFontSize(6.8);
+    doc.setFont('helvetica', 'italic');
+    doc.setTextColor(190, 18, 60); // rose-700
+    doc.text(
+      '"Two hearts, one rhythm, and an unforgettable evening under the lights. Celebrate your love tonight!"',
+      margin + 11,
+      y + 8.5
+    );
+
+    y += 14.5;
+  }
 
   // =========================================================================
   // RESERVED SEATS & PRICING BREAKDOWN
@@ -282,8 +343,13 @@ export const downloadTicketPdf = async ({ booking, user = {}, event = null }) =>
   y += 5;
 
   // Seats Container Box
-  doc.setFillColor(241, 245, 249); // slate-100
-  doc.setDrawColor(226, 232, 240);
+  if (isCouple) {
+    doc.setFillColor(255, 245, 245); // rose-50/50
+    doc.setDrawColor(254, 205, 211); // rose-200
+  } else {
+    doc.setFillColor(241, 245, 249); // slate-100
+    doc.setDrawColor(226, 232, 240);
+  }
   doc.roundedRect(margin + 6, y, contentWidth - 12, 38, 3, 3, 'FD');
 
   const seatBoxY = y + 6;
@@ -304,7 +370,11 @@ export const downloadTicketPdf = async ({ booking, user = {}, event = null }) =>
       const seatText = `Seat ${s.seatNumber}`;
       const seatTextWidth = doc.getTextWidth(seatText) + 8;
 
-      doc.setFillColor(2, 132, 199); // sky-600
+      if (isCouple) {
+        doc.setFillColor(225, 29, 72); // rose-600
+      } else {
+        doc.setFillColor(2, 132, 199); // sky-600
+      }
       doc.roundedRect(seatBadgeX, seatBadgeY, seatTextWidth, seatBadgeHeight, 1.5, 1.5, 'F');
 
       doc.setTextColor(255, 255, 255);
@@ -326,6 +396,16 @@ export const downloadTicketPdf = async ({ booking, user = {}, event = null }) =>
   doc.setTextColor(100, 116, 139);
   doc.text(`Total Seats Reserved: ${seats.length || 1}`, margin + 12, seatBadgeY + 16);
 
+  if (booking.isCoupleBooking) {
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(225, 29, 72); // rose-600
+    doc.text('Type: COUPLE PASS (Strictly 1 Boy + 1 Girl Required at Gate • 40% OFF)', margin + 12, seatBadgeY + 22);
+  } else if (booking.isGroupBooking || (booking.discountAmount && booking.discountAmount > 0)) {
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(16, 185, 129); // emerald-500
+    doc.text(`Type: Group Booking (${seats.length} Tickets • ${booking.discountPercentage || 10}% Discount)`, margin + 12, seatBadgeY + 22);
+  }
+
   // Right side: Price & Payment Status
   const priceColX = margin + contentWidth - 65;
   doc.setFontSize(7.5);
@@ -335,13 +415,33 @@ export const downloadTicketPdf = async ({ booking, user = {}, event = null }) =>
 
   doc.setFontSize(13);
   doc.setFont('helvetica', 'bold');
-  doc.setTextColor(isCancelled ? 148 : 5, isCancelled ? 163 : 150, isCancelled ? 184 : 105);
+  doc.setTextColor(isCancelled ? 148 : isCouple ? 225 : 5, isCancelled ? 163 : isCouple ? 29 : 150, isCancelled ? 184 : isCouple ? 72 : 105);
   doc.text(totalAmount, priceColX, seatBoxY + 8);
 
-  doc.setFontSize(7);
-  doc.setFont('helvetica', 'normal');
-  doc.setTextColor(100, 116, 139);
-  doc.text('Payment Mode: Online / Verified', priceColX, seatBoxY + 14);
+  if (booking.isCoupleBooking) {
+    doc.setFontSize(6.5);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(225, 29, 72); // rose-600
+    doc.text(`Includes 40% Couple Special Offer`, priceColX, seatBoxY + 13.5);
+    doc.setFontSize(7);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(100, 116, 139);
+    doc.text('Payment Mode: Online / Verified', priceColX, seatBoxY + 18.5);
+  } else if (booking.discountAmount && booking.discountAmount > 0) {
+    doc.setFontSize(6.5);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(16, 185, 129);
+    doc.text(`Includes -${formatPdfAmount(booking.discountAmount)} Group Discount`, priceColX, seatBoxY + 13.5);
+    doc.setFontSize(7);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(100, 116, 139);
+    doc.text('Payment Mode: Online / Verified', priceColX, seatBoxY + 18.5);
+  } else {
+    doc.setFontSize(7);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(100, 116, 139);
+    doc.text('Payment Mode: Online / Verified', priceColX, seatBoxY + 14);
+  }
 
   y += 44;
 
@@ -355,6 +455,9 @@ export const downloadTicketPdf = async ({ booking, user = {}, event = null }) =>
   y += 4;
 
   const rules = [
+    ...(booking.isCoupleBooking
+      ? ['STRICT COUPLE ENTRY POLICY: This ticket is strictly for a couple (1 Boy & 1 Girl). Both partners must reach the gate together. If you arrive without a girl/female companion, NO ENTRY WILL BE GRANTED and no refund will be issued.']
+      : []),
     'Please present this digital PDF or printed copy with the scannable QR Code at the entrance gate.',
     'Each e-ticket is strictly valid for the reserved seats listed above and entitles admission to one patron per seat.',
     'A valid government-issued photo identity proof matching the ticket holder name may be requested.',

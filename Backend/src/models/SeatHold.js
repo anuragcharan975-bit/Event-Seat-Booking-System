@@ -31,6 +31,34 @@ const seatHoldSchema = new mongoose.Schema(
       type: Date,
       required: [true, 'Expiration timestamp is required'],
       index: true
+    },
+    isGroupBooking: {
+      type: Boolean,
+      default: false
+    },
+    isCoupleBooking: {
+      type: Boolean,
+      default: false
+    },
+    coupleDisclaimerAccepted: {
+      type: Boolean,
+      default: false
+    },
+    originalAmount: {
+      type: Number,
+      default: 0
+    },
+    discountAmount: {
+      type: Number,
+      default: 0
+    },
+    discountPercentage: {
+      type: Number,
+      default: 0
+    },
+    totalAmount: {
+      type: Number,
+      default: 0
     }
   },
   {

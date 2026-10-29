@@ -22,7 +22,9 @@ const createSeatHold = async ({
   eventId,
   seatIds,
   durationSeconds = null,
-  clockNow = null
+  clockNow = null,
+  isCoupleBooking = false,
+  coupleDisclaimerAccepted = false
 }) => {
   const now = clockNow ? new Date(clockNow) : new Date();
   const holdSeconds = durationSeconds !== null
@@ -54,7 +56,33 @@ const createSeatHold = async ({
     throw error;
   }
 
-  // 4. Verify user maximum seat limit (4 seats per user per event)
+  // 4. Determine if this qualifies as a Group Booking (min 10 seats or event.groupMinSeats)
+  const isGroupBooking = Boolean(
+    !isCoupleBooking &&
+    event.isGroupBookingEnabled !== false &&
+    seatIds.length >= (event.groupMinSeats || 10)
+  );
+
+  // 4b. Validate Couple Ticket condition (strictly 2 seats for 1 Boy and 1 Girl)
+  if (isCoupleBooking) {
+    if (event.isCoupleTicketEnabled === false) {
+      const error = new Error('Couple tickets are not available for this event.');
+      error.statusCode = 400;
+      throw error;
+    }
+    if (seatIds.length !== 2) {
+      const error = new Error('Couple Ticket Condition: You must select exactly 2 seats for 1 Boy and 1 Girl.');
+      error.statusCode = 400;
+      throw error;
+    }
+    if (!coupleDisclaimerAccepted) {
+      const error = new Error('You must accept the strict couple entry policy (1 Boy + 1 Girl required at gate) to book a couple ticket.');
+      error.statusCode = 400;
+      throw error;
+    }
+  }
+
+  // Verify user maximum seat limit (4 seats per user per event, OR group booking capacity)
   if (userId) {
     const existingBookings = await Booking.find({
       userId,
@@ -66,17 +94,26 @@ const createSeatHold = async ({
       0
     );
 
-    if (alreadyBookedSeatsCount >= 4) {
-      const error = new Error('You already booked your max seats for this event. Maximum limit is 4 seats per event.');
-      error.statusCode = 400;
-      throw error;
-    }
+    if (!isGroupBooking) {
+      if (alreadyBookedSeatsCount >= 4) {
+        const error = new Error('You already booked your max seats for this event. Maximum limit is 4 seats per event.');
+        error.statusCode = 400;
+        throw error;
+      }
 
-    if (alreadyBookedSeatsCount + seatIds.length > 4) {
-      const remaining = 4 - alreadyBookedSeatsCount;
-      const error = new Error(`You can only book up to ${remaining} more seat(s) for this event. Maximum limit is 4 seats per event.`);
-      error.statusCode = 400;
-      throw error;
+      if (alreadyBookedSeatsCount + seatIds.length > 4) {
+        const remaining = 4 - alreadyBookedSeatsCount;
+        const error = new Error(`You can only book up to ${remaining} more seat(s) for this event. Maximum limit is 4 seats per event.`);
+        error.statusCode = 400;
+        throw error;
+      }
+    } else {
+      const maxGroupAllowed = Math.min(20, event.totalSeats || 40);
+      if (alreadyBookedSeatsCount + seatIds.length > maxGroupAllowed) {
+        const error = new Error(`Group reservation exceeds maximum allowed capacity of ${maxGroupAllowed} seats.`);
+        error.statusCode = 400;
+        throw error;
+      }
     }
   }
 
@@ -101,9 +138,17 @@ const createSeatHold = async ({
     }
   }
 
-  // 4. Generate new hold ObjectId in advance
+  // 4. Generate new hold ObjectId and calculate authoritative group or couple discount
   const holdId = new mongoose.Types.ObjectId();
-  const totalAmount = event.pricePerSeat * seatIds.length;
+  const baseAmount = event.pricePerSeat * seatIds.length;
+  let discountPct = 0;
+  if (isGroupBooking) {
+    discountPct = event.groupDiscountPercentage || 10;
+  } else if (isCoupleBooking) {
+    discountPct = event.coupleDiscountPercentage != null ? event.coupleDiscountPercentage : 40;
+  }
+  const discountAmount = discountPct > 0 ? Math.round((baseAmount * discountPct) / 100) : 0;
+  const totalAmount = baseAmount - discountAmount;
 
   // Check if replica set transaction is available
   const useReplicaSetTransaction = supportsTransactions();
@@ -156,7 +201,14 @@ const createSeatHold = async ({
               eventId: event._id,
               seatIds,
               status: 'ACTIVE',
-              expiresAt
+              expiresAt,
+              isGroupBooking,
+              isCoupleBooking: Boolean(isCoupleBooking),
+              coupleDisclaimerAccepted: Boolean(coupleDisclaimerAccepted),
+              originalAmount: baseAmount,
+              discountAmount,
+              discountPercentage: discountPct,
+              totalAmount
             }
           ],
           { session }
@@ -172,6 +224,10 @@ const createSeatHold = async ({
         seatIds,
         seats: seats.map((s) => ({ id: s._id, seatNumber: s.seatNumber, row: s.row })),
         pricePerSeat: event.pricePerSeat,
+        isGroupBooking,
+        originalAmount: baseAmount,
+        discountAmount,
+        discountPercentage: discountPct,
         totalAmount,
         expiresAt,
         serverTime: now
@@ -222,7 +278,14 @@ const createSeatHold = async ({
         eventId: event._id,
         seatIds,
         status: 'ACTIVE',
-        expiresAt
+        expiresAt,
+        isGroupBooking,
+        isCoupleBooking: Boolean(isCoupleBooking),
+        coupleDisclaimerAccepted: Boolean(coupleDisclaimerAccepted),
+        originalAmount: baseAmount,
+        discountAmount,
+        discountPercentage: discountPct,
+        totalAmount
       });
 
       return {
@@ -232,6 +295,10 @@ const createSeatHold = async ({
         seatIds,
         seats: seats.map((s) => ({ id: s._id, seatNumber: s.seatNumber, row: s.row })),
         pricePerSeat: event.pricePerSeat,
+        isGroupBooking,
+        originalAmount: baseAmount,
+        discountAmount,
+        discountPercentage: discountPct,
         totalAmount,
         expiresAt,
         serverTime: now
@@ -351,7 +418,8 @@ const getUserActiveHold = async ({ userId, eventId = null, clockNow = null }) =>
   }
 
   const pricePerSeat = activeHold.eventId?.pricePerSeat || 0;
-  const totalAmount = pricePerSeat * activeHold.seatIds.length;
+  const baseAmount = activeHold.originalAmount || (pricePerSeat * activeHold.seatIds.length);
+  const totalAmount = activeHold.totalAmount != null ? activeHold.totalAmount : (pricePerSeat * activeHold.seatIds.length);
 
   return {
     holdId: activeHold._id,
@@ -365,6 +433,10 @@ const getUserActiveHold = async ({ userId, eventId = null, clockNow = null }) =>
       row: s.row
     })),
     pricePerSeat,
+    isGroupBooking: Boolean(activeHold.isGroupBooking),
+    originalAmount: baseAmount,
+    discountAmount: activeHold.discountAmount || 0,
+    discountPercentage: activeHold.discountPercentage || 0,
     totalAmount,
     expiresAt: activeHold.expiresAt,
     serverTime: now

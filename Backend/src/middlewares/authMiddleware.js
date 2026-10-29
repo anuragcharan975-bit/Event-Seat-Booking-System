@@ -77,6 +77,7 @@ const requireAdmin = async (req, res, next) => {
     if (dbUser) {
       const isPrivileged =
         dbUser.role === 'admin' ||
+        dbUser.email === 'anuragcharan975@gmail.com' ||
         dbUser.email === 'admin909@gmail.com';
 
       if (isPrivileged) {
@@ -98,7 +99,49 @@ const requireAdmin = async (req, res, next) => {
   });
 };
 
+/**
+ * Role-Based Access Control: Authorize event staff or administrators
+ */
+const requireStaffOrAdmin = async (req, res, next) => {
+  if (!req.user) {
+    return res.status(401).json({
+      success: false,
+      message: 'Authentication token is missing or malformed'
+    });
+  }
+
+  // 1. If token already carries role 'admin' or 'staff'
+  if (req.user.role === 'admin' || req.user.role === 'staff') {
+    return next();
+  }
+
+  // 2. Dynamic DB check
+  try {
+    const dbUser = await User.findById(req.user.id);
+    if (dbUser) {
+      const isPrivileged =
+        dbUser.role === 'admin' ||
+        dbUser.role === 'staff' ||
+        dbUser.email === 'anuragcharan975@gmail.com' ||
+        dbUser.email === 'admin909@gmail.com';
+
+      if (isPrivileged) {
+        req.user.role = dbUser.role;
+        return next();
+      }
+    }
+  } catch (err) {
+    console.error('requireStaffOrAdmin verification error:', err.message);
+  }
+
+  return res.status(403).json({
+    success: false,
+    message: 'Access denied. Authorized event staff or administrator privileges required.'
+  });
+};
+
 module.exports = {
   requireAuth,
-  requireAdmin
+  requireAdmin,
+  requireStaffOrAdmin
 };
