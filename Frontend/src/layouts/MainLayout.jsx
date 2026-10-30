@@ -1,6 +1,7 @@
-import React from "react";
+import React, { Suspense } from "react";
 import { Outlet, useLocation, Link } from "react-router-dom";
 import Navbar from "../components/Navbar";
+import Loading from "../components/Loading";
 import { Ticket, ShieldCheck, Clock, Sparkles, Heart, CheckCircle2, ArrowRight } from "lucide-react";
 
 const MainLayout = () => {
@@ -16,7 +17,15 @@ const MainLayout = () => {
       <main
         className={`flex-1 w-full ${isAdminRoute || isAuthRoute ? "" : "max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-10"}`}
       >
-        <Outlet />
+        <Suspense
+          fallback={
+            <div className="min-h-[45vh] flex items-center justify-center p-8">
+              <Loading message="Loading page..." size="md" />
+            </div>
+          }
+        >
+          <Outlet />
+        </Suspense>
       </main>
 
       {!isAdminRoute && !isAuthRoute && (

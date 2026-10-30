@@ -1,6 +1,3 @@
-import { jsPDF } from 'jspdf';
-import QRCode from 'qrcode';
-
 /**
  * Format date for PDF display
  */
@@ -42,6 +39,13 @@ export const downloadTicketPdf = async ({ booking, user = {}, event = null }) =>
   if (!booking) {
     throw new Error('Booking data is required to generate ticket');
   }
+
+  // Dynamically load heavy PDF and QR generation libraries on-demand to optimize initial bundle size
+  const [{ jsPDF }, QRCodeModule] = await Promise.all([
+    import('jspdf'),
+    import('qrcode')
+  ]);
+  const QRCode = QRCodeModule.default || QRCodeModule;
 
   const evt = booking.event || event || {};
   const ref = booking.bookingReference || 'TICKET';
