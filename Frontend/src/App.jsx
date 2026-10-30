@@ -4,6 +4,7 @@ import { AuthProvider } from './context/AuthContext';
 import MainLayout from './layouts/MainLayout';
 import ProtectedRoute from './components/ProtectedRoute';
 import Loading from './components/Loading';
+import ScrollToTop from './components/ScrollToTop';
 
 // Page-level code splitting with React.lazy
 const Home = lazy(() => import('./pages/Home'));
@@ -24,6 +25,7 @@ function App() {
   return (
     <AuthProvider>
       <BrowserRouter>
+        <ScrollToTop />
         <Suspense
           fallback={
             <div className="min-h-screen flex items-center justify-center p-8 bg-slate-50">

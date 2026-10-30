@@ -4,10 +4,11 @@
 
 @layer base {
   html {
-    scroll-behavior: smooth;
+    scroll-behavior: auto;
   }
   body {
     @apply bg-slate-50 text-slate-900 font-sans antialiased selection:bg-sky-500 selection:text-white;
+    -webkit-overflow-scrolling: touch;
   }
   /* Modern Slim Custom Scrollbar */
   ::-webkit-scrollbar {

@@ -209,7 +209,8 @@ const Events = () => {
   const handlePageChange = (newPage) => {
     if (newPage >= 1 && newPage <= totalPages && newPage !== currentPage) {
       setCurrentPage(newPage);
-      window.scrollTo({ top: 320, behavior: 'smooth' });
+      const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
+      window.scrollTo({ top: isMobile ? 0 : 260, behavior: 'smooth' });
     }
   };
 

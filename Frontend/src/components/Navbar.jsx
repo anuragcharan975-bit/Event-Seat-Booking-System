@@ -24,6 +24,11 @@ const Navbar = () => {
   const [showLogoutDialog, setShowLogoutDialog] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
+  // Automatically close mobile menu and ensure view resets on route changes
+  React.useEffect(() => {
+    setMobileMenuOpen(false);
+  }, [location.pathname]);
+
   const handleLogoutClick = () => {
     setShowLogoutDialog(true);
     setMobileMenuOpen(false);
