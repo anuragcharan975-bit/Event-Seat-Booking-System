@@ -296,10 +296,9 @@ const Login = () => {
               <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
               <input
                 type="password"
-                maxLength={6}
                 value={password}
-                onChange={(e) => setPassword(e.target.value.slice(0, 6))}
-                placeholder="Max 6 characters"
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Enter your password"
                 required
                 className="w-full pl-10 pr-4 py-3 rounded-2xl border border-slate-200/90 bg-white/90 text-sm focus:outline-none focus:ring-4 focus:ring-sky-500/10 focus:border-sky-500 transition shadow-2xs"
               />
