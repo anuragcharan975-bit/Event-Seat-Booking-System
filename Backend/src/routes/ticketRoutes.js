@@ -9,6 +9,7 @@ const { requireAuth, requireStaffOrAdmin } = require('../middlewares/authMiddlew
  * @access  Public
  */
 router.get('/verify/:bookingReference', ticketController.verifyTicket);
+router.get('/:bookingReference', ticketController.verifyTicket);
 
 /**
  * @route   PATCH /api/tickets/:bookingReference/check-in
