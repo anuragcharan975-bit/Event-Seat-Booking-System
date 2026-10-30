@@ -43,15 +43,21 @@ app.use(
       }
 
       const cleanOrigin = origin.trim().replace(/\/+$/, '');
-      const allowedList = parseAllowedOrigins();
+      const lowerOrigin = cleanOrigin.toLowerCase();
+      const allowedList = parseAllowedOrigins().map((o) => o.toLowerCase());
 
       // Check explicit allowed origin list or if development mode
-      if (allowedList.includes(cleanOrigin) || process.env.NODE_ENV !== 'production') {
+      if (allowedList.includes(lowerOrigin) || process.env.NODE_ENV !== 'production') {
         return callback(null, true);
       }
 
-      // Automatically allow Vercel deployment & preview domains for this application
-      if (cleanOrigin.endsWith('.vercel.app')) {
+      // Automatically allow all Vercel domains (production, custom preview deployments, and branches)
+      if (lowerOrigin.endsWith('.vercel.app') || lowerOrigin.includes('.vercel.app')) {
+        return callback(null, true);
+      }
+
+      // Also allow onrender.com domains
+      if (lowerOrigin.endsWith('.onrender.com')) {
         return callback(null, true);
       }
 
@@ -59,7 +65,7 @@ app.use(
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin']
   })
 );
 

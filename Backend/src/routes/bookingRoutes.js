@@ -34,9 +34,10 @@ const { validateCreateBooking } = require('../validators/bookingValidators');
 // Direct booking creation endpoint with full validation
 router.post('/', requireAuth, validateCreateBooking, validateRequest, bookingController.createBooking);
 
-// Get all bookings for authenticated user (supports both /my and /me)
+// Get all bookings for authenticated user (supports /my, /me, and /my-bookings)
 router.get('/my', requireAuth, bookingController.getMyBookings);
 router.get('/me', requireAuth, bookingController.getMyBookings);
+router.get('/my-bookings', requireAuth, bookingController.getMyBookings);
 
 // Cancel a booking — Support PATCH, POST, DELETE with /:id/cancel or /:bookingId/cancel
 router.patch('/:id/cancel', requireAuth, validateBookingId, bookingController.cancelBooking);

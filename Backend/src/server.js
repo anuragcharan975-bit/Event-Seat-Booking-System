@@ -451,7 +451,7 @@ const startServer = async () => {
     await syncCompletedEvents();
 
     // Periodically sync completed events every 30 seconds
-    setInterval(syncCompletedEvents, 30 * 1000);
+    const syncInterval = setInterval(syncCompletedEvents, 30 * 1000);
 
     const server = app.listen(PORT, () => {
       console.log(`=======================================================`);
@@ -461,6 +461,31 @@ const startServer = async () => {
       console.log(` Events: http://localhost:${PORT}/api/events`);
       console.log(`=======================================================`);
     });
+
+    server.on('error', (err) => {
+      if (err.code === 'EADDRINUSE') {
+        console.error(`[Server Fatal] Port ${PORT} is already in use by another process (EADDRINUSE).`);
+        console.error(`Please terminate the existing process using port ${PORT} before starting the server.`);
+      } else {
+        console.error(`[Server Fatal] Server socket error:`, err.message);
+      }
+      process.exit(1);
+    });
+
+    const shutdown = async (signal) => {
+      console.log(`\n[Server] Received ${signal}. Shutting down gracefully...`);
+      clearInterval(syncInterval);
+      server.close(() => {
+        console.log('[Server] HTTP server closed.');
+        mongoose.connection.close(false).then(() => {
+          console.log('[Server] MongoDB connection closed.');
+          process.exit(0);
+        });
+      });
+    };
+
+    process.on('SIGINT', () => shutdown('SIGINT'));
+    process.on('SIGTERM', () => shutdown('SIGTERM'));
 
     return server;
   } catch (error) {

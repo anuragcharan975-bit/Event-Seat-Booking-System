@@ -1,0 +1,10 @@
+{
+  "name": "event-seat-booking-system",
+  "version": "1.0.0",
+  "private": true,
+  "description": "High-Concurrency Live Event Seat Booking System",
+  "scripts": {
+    "build": "npm --prefix Frontend install && npm --prefix Frontend run build",
+    "start": "npm --prefix Backend start"
+  }
+}
