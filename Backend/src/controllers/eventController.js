@@ -58,10 +58,10 @@ const getEvents = asyncHandler(async (req, res) => {
         { status: tokenRegex }
       );
 
-      // Handle status keywords in search
+      // Handle status keywords in search (Pending, In Progress / In Process, Completed)
       if (/^pend(ing)?$/i.test(token)) {
         searchOrConditions.push({ status: 'Pending' });
-      } else if (/^(in_?progress|progress|live)$/i.test(token)) {
+      } else if (/^(in[_-]?progress|in[_-]?process|progress|process|live)$/i.test(token)) {
         searchOrConditions.push({ status: 'In Progress' });
       } else if (/^complet(ed?)?$/i.test(token)) {
         searchOrConditions.push({ status: 'Completed' });
@@ -190,11 +190,11 @@ const getEvents = asyncHandler(async (req, res) => {
           { endTime: { $exists: false }, startTime: { $lt: now } }
         ]
       });
-    } else if (rawStatus === 'pending') {
+    } else if (/^pend(ing)?$/i.test(rawStatus)) {
       andConditions.push({ status: 'Pending' });
-    } else if (rawStatus === 'in_progress' || rawStatus === 'in progress' || rawStatus === 'inprogress') {
+    } else if (/^(in[_-]?progress|in[_-]?process|progress|process|live)$/i.test(rawStatus)) {
       andConditions.push({ status: 'In Progress' });
-    } else if (rawStatus === 'completed') {
+    } else if (/^complet(ed?)?$/i.test(rawStatus)) {
       andConditions.push({ status: 'Completed' });
     } else if (rawStatus === 'available') {
       const availableEventIds = await Seat.distinct('eventId', {
@@ -279,7 +279,13 @@ const getEvents = asyncHandler(async (req, res) => {
       const effectiveStatus = availableSeats > 0 ? 'AVAILABLE' : 'SOLD_OUT';
 
       const isEnded = event.endTime ? new Date(event.endTime) <= now : false;
-      const effectiveEventStatus = isEnded || event.status === 'Completed' ? 'Completed' : (event.status || 'Pending');
+      const isStarted = event.startTime ? new Date(event.startTime) <= now : false;
+      let effectiveEventStatus = event.status || 'Pending';
+      if (isEnded || effectiveEventStatus === 'Completed') {
+        effectiveEventStatus = 'Completed';
+      } else if (effectiveEventStatus === 'In Progress' || (isStarted && (!event.endTime || new Date(event.endTime) > now))) {
+        effectiveEventStatus = 'In Progress';
+      }
 
       return {
         _id: event._id,
@@ -370,6 +376,15 @@ const getEventSeats = asyncHandler(async (req, res) => {
 
   const availableSeatsCount = seatGrid.filter((s) => s.status === 'AVAILABLE').length;
 
+  const isEnded = event.endTime ? new Date(event.endTime) <= now : false;
+  const isStarted = event.startTime ? new Date(event.startTime) <= now : false;
+  let effectiveEventStatus = event.status || 'Pending';
+  if (isEnded || effectiveEventStatus === 'Completed') {
+    effectiveEventStatus = 'Completed';
+  } else if (effectiveEventStatus === 'In Progress' || (isStarted && (!event.endTime || new Date(event.endTime) > now))) {
+    effectiveEventStatus = 'In Progress';
+  }
+
   return res.status(200).json({
     success: true,
     event: {
@@ -386,8 +401,8 @@ const getEventSeats = asyncHandler(async (req, res) => {
       pricePerSeat: event.pricePerSeat,
       totalSeats: seatGrid.length || event.totalSeats,
       availableSeats: availableSeatsCount,
-      status: (event.endTime && new Date(event.endTime) <= now) || event.status === 'Completed' ? 'Completed' : (event.status || 'Pending'),
-      eventStatus: (event.endTime && new Date(event.endTime) <= now) || event.status === 'Completed' ? 'Completed' : (event.status || 'Pending'),
+      status: effectiveEventStatus,
+      eventStatus: effectiveEventStatus,
       averageRating: event.averageRating || 0,
       totalReviews: event.totalReviews || 0,
       isGroupBookingEnabled: event.isGroupBookingEnabled !== false,
@@ -493,6 +508,15 @@ const getEventBySlug = asyncHandler(async (req, res) => {
 
   const availableSeatsCount = seatGrid.filter((s) => s.status === 'AVAILABLE').length;
 
+  const isEnded = event.endTime ? new Date(event.endTime) <= now : false;
+  const isStarted = event.startTime ? new Date(event.startTime) <= now : false;
+  let effectiveEventStatus = event.status || 'Pending';
+  if (isEnded || effectiveEventStatus === 'Completed') {
+    effectiveEventStatus = 'Completed';
+  } else if (effectiveEventStatus === 'In Progress' || (isStarted && (!event.endTime || new Date(event.endTime) > now))) {
+    effectiveEventStatus = 'In Progress';
+  }
+
   return res.status(200).json({
     success: true,
     event: {
@@ -509,8 +533,8 @@ const getEventBySlug = asyncHandler(async (req, res) => {
       pricePerSeat: event.pricePerSeat,
       totalSeats: seatGrid.length || event.totalSeats,
       availableSeats: availableSeatsCount,
-      status: (event.endTime && new Date(event.endTime) <= now) || event.status === 'Completed' ? 'Completed' : (event.status || 'Pending'),
-      eventStatus: (event.endTime && new Date(event.endTime) <= now) || event.status === 'Completed' ? 'Completed' : (event.status || 'Pending'),
+      status: effectiveEventStatus,
+      eventStatus: effectiveEventStatus,
       averageRating: event.averageRating || 0,
       totalReviews: event.totalReviews || 0,
       isGroupBookingEnabled: event.isGroupBookingEnabled !== false,

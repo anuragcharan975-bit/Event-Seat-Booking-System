@@ -68,12 +68,18 @@ const Events = () => {
     }
     return 'all';
   });
+  const normalizeStatusParam = (raw) => {
+    if (!raw) return 'all';
+    const s = raw.trim().toLowerCase();
+    if (s === 'all' || s === 'all-status') return 'all';
+    if (/^pend(ing)?$/i.test(s)) return 'pending';
+    if (/^(in[_-]?progress|in[_-]?process|progress|process|live)$/i.test(s)) return 'in_progress';
+    if (/^complet(ed?)?$/i.test(s)) return 'completed';
+    return s;
+  };
+
   const [selectedStatus, setSelectedStatus] = useState(() => {
-    const urlStatus = searchParams.get('status');
-    if (urlStatus && ['pending', 'in_progress', 'completed'].includes(urlStatus.toLowerCase())) {
-      return urlStatus.toLowerCase();
-    }
-    return 'all';
+    return normalizeStatusParam(searchParams.get('status'));
   });
   const [selectedSort, setSelectedSort] = useState('newest');
   const [selectedDate, setSelectedDate] = useState('');
@@ -111,6 +117,15 @@ const Events = () => {
     }
     setCurrentPage(1);
   }, [routeCategory]);
+
+  // Sync status state when URL query parameter changes
+  useEffect(() => {
+    const urlStatus = searchParams.get('status');
+    if (urlStatus !== null) {
+      setSelectedStatus(normalizeStatusParam(urlStatus));
+      setCurrentPage(1);
+    }
+  }, [searchParams]);
 
   // Debounce search input to avoid excessive network requests
   useEffect(() => {

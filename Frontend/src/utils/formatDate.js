@@ -72,7 +72,8 @@ export const isEventOverTime = (event) => {
   if (event.startTime) {
     const start = new Date(event.startTime);
     if (!isNaN(start.getTime())) {
-      return now > start;
+      // Default to 4 hours duration if no endTime is specified
+      return now.getTime() > start.getTime() + 4 * 60 * 60 * 1000;
     }
   }
   return false;
@@ -101,7 +102,7 @@ export const getEventTimingDisplay = (event) => {
   const now = new Date();
   const isOverTime = end && !isNaN(end.getTime())
     ? now > end
-    : (start && !isNaN(start.getTime()) ? now > start : false);
+    : (start && !isNaN(start.getTime()) ? now.getTime() > start.getTime() + 4 * 60 * 60 * 1000 : false);
 
   return {
     dateStr,

@@ -74,7 +74,13 @@ const getEvents = asyncHandler(async (req, res) => {
   const eventsWithStats = await Promise.all(
     events.map(async (event) => {
       const isEnded = event.endTime ? new Date(event.endTime) <= now : false;
-      const effectiveStatus = isEnded || event.status === 'Completed' ? 'Completed' : (event.status || 'Pending');
+      const isStarted = event.startTime ? new Date(event.startTime) <= now : false;
+      let effectiveStatus = event.status || 'Pending';
+      if (isEnded || effectiveStatus === 'Completed') {
+        effectiveStatus = 'Completed';
+      } else if (effectiveStatus === 'In Progress' || (isStarted && (!event.endTime || new Date(event.endTime) > now))) {
+        effectiveStatus = 'In Progress';
+      }
 
       const availableSeats = await Seat.countDocuments({
         eventId: event._id,
@@ -317,8 +323,13 @@ const updateEventStatus = asyncHandler(async (req, res) => {
   const { eventId } = req.params;
   const { status } = req.body;
 
+  let normalizedStatus = status;
+  if (/^pend(ing)?$/i.test(status)) normalizedStatus = 'Pending';
+  else if (/^(in[_-]?progress|in[_-]?process|progress|process|live)$/i.test(status)) normalizedStatus = 'In Progress';
+  else if (/^complet(ed?)?$/i.test(status)) normalizedStatus = 'Completed';
+
   const validStatuses = ['Pending', 'In Progress', 'Completed'];
-  if (!status || !validStatuses.includes(status)) {
+  if (!normalizedStatus || !validStatuses.includes(normalizedStatus)) {
     return res.status(400).json({
       success: false,
       message: `Invalid status "${status}". Allowed values: ${validStatuses.join(', ')}`
@@ -333,12 +344,25 @@ const updateEventStatus = asyncHandler(async (req, res) => {
     });
   }
 
-  event.status = status;
+  event.status = normalizedStatus;
+  const now = new Date();
+  if ((normalizedStatus === 'In Progress' || normalizedStatus === 'Pending') && event.endTime && new Date(event.endTime) <= now) {
+    if (normalizedStatus === 'In Progress') {
+      event.startTime = new Date(now.getTime() - 30 * 60 * 1000);
+      event.endTime = new Date(now.getTime() + 4 * 60 * 60 * 1000);
+    } else {
+      event.startTime = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+      event.endTime = new Date(now.getTime() + 28 * 60 * 60 * 1000);
+    }
+  } else if (normalizedStatus === 'Completed' && (!event.endTime || new Date(event.endTime) > now)) {
+    event.endTime = new Date(now.getTime() - 1000);
+  }
+
   await event.save();
 
   return res.status(200).json({
     success: true,
-    message: `Event status updated to "${status}" successfully`,
+    message: `Event status updated to "${normalizedStatus}" successfully`,
     data: {
       _id: event._id,
       title: event.title,

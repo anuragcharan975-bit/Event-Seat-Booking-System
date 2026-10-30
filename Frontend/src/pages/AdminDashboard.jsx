@@ -2422,7 +2422,7 @@ const AdminDashboard = () => {
                                 <div className="relative inline-flex items-center">
                                   {(() => {
                                     const isTimeOver = ev.endTime ? new Date() >= new Date(ev.endTime) : false;
-                                    const currentEvStatus = isTimeOver || ev.status === 'Completed' ? 'Completed' : (ev.status || 'Pending');
+                                    const currentEvStatus = ev.status || (isTimeOver ? 'Completed' : 'Pending');
                                     return (
                                       <select
                                         value={currentEvStatus}
