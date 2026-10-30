@@ -2,9 +2,22 @@ import axios from 'axios';
 
 // Normalize API base URL: ensure it always points to the backend /api prefix without trailing slashes
 const getBaseUrl = () => {
-  const rawUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-  const cleanUrl = rawUrl.trim().replace(/\/+$/, '');
-  return cleanUrl.endsWith('/api') ? cleanUrl : `${cleanUrl}/api`;
+  if (import.meta.env.VITE_API_URL) {
+    const rawUrl = import.meta.env.VITE_API_URL.trim().replace(/\/+$/, '');
+    return rawUrl.endsWith('/api') ? rawUrl : `${rawUrl}/api`;
+  }
+
+  // In production (e.g. deployed on Vercel) or when accessing outside localhost, default to Render backend
+  if (
+    import.meta.env.PROD ||
+    (typeof window !== 'undefined' &&
+      window.location.hostname !== 'localhost' &&
+      window.location.hostname !== '127.0.0.1')
+  ) {
+    return 'https://event-seat-booking-backend.onrender.com/api';
+  }
+
+  return 'http://localhost:5000/api';
 };
 
 const api = axios.create({

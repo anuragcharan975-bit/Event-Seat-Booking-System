@@ -11,6 +11,8 @@ node_modules/
 .env.production.local
 !.env.example
 !**/.env.example
+!Frontend/.env.production
+!Frontend/.env.development
 
 # Production builds
 dist/
