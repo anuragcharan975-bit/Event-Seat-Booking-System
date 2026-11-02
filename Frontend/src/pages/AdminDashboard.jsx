@@ -1453,8 +1453,12 @@ const AdminDashboard = () => {
                       className="p-3 rounded-2xl bg-slate-50/70 border border-slate-100 flex items-center justify-between text-xs"
                     >
                       <div className="flex items-center gap-2.5">
-                        <div className="w-7 h-7 rounded-full bg-indigo-600 text-white font-bold flex items-center justify-center text-xs shrink-0">
-                          {(u.name || u.email || 'U')[0].toUpperCase()}
+                        <div className="w-7 h-7 rounded-full bg-indigo-600 text-white font-bold flex items-center justify-center text-xs shrink-0 overflow-hidden">
+                          {u.profileImage ? (
+                            <img src={u.profileImage} alt={u.name} className="w-full h-full object-cover" />
+                          ) : (
+                            (u.name || u.email || 'U')[0].toUpperCase()
+                          )}
                         </div>
                         <div>
                           <span className="font-bold text-slate-800 block">{u.name}</span>
@@ -2579,8 +2583,12 @@ const AdminDashboard = () => {
                         <tr key={u._id} className="hover:bg-slate-50/80 transition-colors">
                           <td className="py-3.5 px-4 font-bold text-slate-900">
                             <div className="flex items-center gap-2.5">
-                              <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-purple-600 to-indigo-600 text-white font-bold flex items-center justify-center text-xs shrink-0">
-                                {(u.name || u.email || 'U')[0].toUpperCase()}
+                              <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-purple-600 to-indigo-600 text-white font-bold flex items-center justify-center text-xs shrink-0 overflow-hidden">
+                                {u.profileImage ? (
+                                  <img src={u.profileImage} alt={u.name} className="w-full h-full object-cover" />
+                                ) : (
+                                  (u.name || u.email || 'U')[0].toUpperCase()
+                                )}
                               </div>
                               <div>
                                 <span className="block font-bold">{u.name}</span>

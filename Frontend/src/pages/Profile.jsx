@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { authApi } from '../api/authApi';
@@ -28,8 +28,48 @@ import {
   Eye,
   EyeOff,
   RefreshCw,
-  Send
+  Send,
+  Camera,
+  UploadCloud,
+  Trash2,
+  Loader2
 } from 'lucide-react';
+
+// Client-side image compression for avatars: resizes to max 480x480px, producing a lightweight, high-quality data URL
+const compressAvatarImage = (file) => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        let width = img.width;
+        let height = img.height;
+        const maxDimension = 480;
+
+        if (width > height && width > maxDimension) {
+          height = Math.round((height * maxDimension) / width);
+          width = maxDimension;
+        } else if (height > maxDimension) {
+          width = Math.round((width * maxDimension) / height);
+          height = maxDimension;
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.82);
+        resolve(dataUrl);
+      };
+      img.onerror = reject;
+      img.src = e.target.result;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+};
 
 const Profile = () => {
   const { user, updateUser, logout } = useAuth();
@@ -44,6 +84,10 @@ const Profile = () => {
   const [savingName, setSavingName] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState('');
   const [saveError, setSaveError] = useState('');
+
+  // Profile photo from gallery state
+  const fileInputRef = useRef(null);
+  const [uploadingImage, setUploadingImage] = useState(false);
 
   // Copy ID indicator
   const [copiedId, setCopiedId] = useState(false);
@@ -128,6 +172,64 @@ const Profile = () => {
       setSaveError(err.response?.data?.message || 'Failed to update name. Please try again.');
     } finally {
       setSavingName(false);
+    }
+  };
+
+  const handleAvatarFileSelect = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      setSaveError('Please select a valid image file (JPG, PNG, WEBP) from your gallery');
+      return;
+    }
+
+    if (file.size > 15 * 1024 * 1024) {
+      setSaveError('Image file is too large. Please select an image under 15MB.');
+      return;
+    }
+
+    try {
+      setUploadingImage(true);
+      setSaveError('');
+      setSaveSuccess('');
+
+      const compressedDataUrl = await compressAvatarImage(file);
+      const res = await authApi.updateProfile({ profileImage: compressedDataUrl });
+
+      if (res.success && res.user) {
+        updateUser(res.user);
+        setSaveSuccess('Profile picture updated from gallery successfully!');
+        setTimeout(() => setSaveSuccess(''), 4000);
+      }
+    } catch (err) {
+      console.error('Failed to update avatar:', err);
+      setSaveError(err.response?.data?.message || 'Failed to update profile picture from gallery');
+    } finally {
+      setUploadingImage(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
+  const handleRemovePhoto = async () => {
+    try {
+      setUploadingImage(true);
+      setSaveError('');
+      setSaveSuccess('');
+
+      const res = await authApi.updateProfile({ profileImage: '' });
+      if (res.success && res.user) {
+        updateUser(res.user);
+        setSaveSuccess('Profile picture removed successfully');
+        setTimeout(() => setSaveSuccess(''), 4000);
+      }
+    } catch (err) {
+      console.error('Failed to remove photo:', err);
+      setSaveError(err.response?.data?.message || 'Failed to remove profile picture');
+    } finally {
+      setUploadingImage(false);
     }
   };
 
@@ -239,6 +341,15 @@ const Profile = () => {
 
   return (
     <div className="space-y-8 animate-fadeIn max-w-4xl mx-auto pb-12">
+      {/* Hidden file input for gallery photo selection */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        onChange={handleAvatarFileSelect}
+        className="hidden"
+      />
+
       {/* Breadcrumb Navigation */}
       <nav className="flex items-center gap-2 text-xs text-slate-400 font-medium">
         <Link to="/" className="hover:text-slate-600 transition">
@@ -251,14 +362,47 @@ const Profile = () => {
       {/* Profile Header Hero Card */}
       <div className="relative overflow-hidden bg-gradient-to-br from-slate-900 via-sky-950 to-slate-900 rounded-3xl p-6 sm:p-8 text-white shadow-xl border border-sky-900/40">
         <div className="relative z-10 flex flex-col sm:flex-row items-center sm:items-start gap-6">
-          {/* Avatar with initial */}
-          <div className="relative">
-            <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-3xl bg-gradient-to-tr from-sky-500 to-indigo-600 text-white flex items-center justify-center font-black text-3xl sm:text-4xl shadow-lg shadow-sky-500/30 border-2 border-white/20">
-              {(user?.name || user?.email || 'U')[0].toUpperCase()}
+          {/* Avatar with image from gallery or initial */}
+          <div className="relative group">
+            <div
+              onClick={() => fileInputRef.current?.click()}
+              className="w-20 h-20 sm:w-24 sm:h-24 rounded-3xl bg-gradient-to-tr from-sky-500 to-indigo-600 text-white flex items-center justify-center font-black text-3xl sm:text-4xl shadow-lg shadow-sky-500/30 border-2 border-white/20 overflow-hidden cursor-pointer relative"
+              title="Click to choose a photo from your gallery"
+            >
+              {uploadingImage && (
+                <div className="absolute inset-0 bg-slate-950/80 z-20 flex flex-col items-center justify-center gap-1 text-white">
+                  <Loader2 className="w-6 h-6 animate-spin text-sky-400" />
+                  <span className="text-[9px] font-bold tracking-wider">SAVING</span>
+                </div>
+              )}
+              {user?.profileImage ? (
+                <img
+                  src={user.profileImage}
+                  alt={user?.name || 'Profile'}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <span>{(user?.name || user?.email || 'U')[0].toUpperCase()}</span>
+              )}
+              {/* Hover overlay hint */}
+              {!uploadingImage && (
+                <div className="absolute inset-0 bg-slate-950/50 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1 text-white">
+                  <Camera className="w-5 h-5 text-white drop-shadow" />
+                  <span className="text-[9px] font-extrabold uppercase tracking-wider">Change</span>
+                </div>
+              )}
             </div>
-            <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-emerald-500 border-2 border-slate-900 flex items-center justify-center">
-              <span className="w-2 h-2 rounded-full bg-white" />
-            </div>
+
+            {/* Quick Gallery Upload button badge */}
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploadingImage}
+              className="absolute -bottom-1 -right-1 w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-sky-500 hover:bg-sky-400 text-white border-2 border-slate-900 shadow-md flex items-center justify-center transition-transform hover:scale-110 active:scale-95 disabled:opacity-50"
+              title="Upload photo from gallery"
+            >
+              <Camera className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+            </button>
           </div>
 
           <div className="flex-1 text-center sm:text-left space-y-2">
@@ -364,6 +508,63 @@ const Profile = () => {
         </div>
 
         <div className="space-y-4">
+          {/* Profile Photo Management Row */}
+          <div className="p-4 bg-slate-50 border border-slate-200/80 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-3.5">
+              <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-sky-500 to-indigo-600 text-white font-black text-lg flex items-center justify-center shrink-0 border border-slate-200 overflow-hidden shadow-xs">
+                {user?.profileImage ? (
+                  <img src={user.profileImage} alt="Avatar" className="w-full h-full object-cover" />
+                ) : (
+                  (user?.name || user?.email || 'U')[0].toUpperCase()
+                )}
+              </div>
+              <div className="space-y-0.5">
+                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
+                  Profile Photo
+                </span>
+                <p className="text-xs text-slate-600 font-medium">
+                  {user?.profileImage
+                    ? 'Custom photo set from gallery'
+                    : 'No custom photo set. Select an image from your gallery'}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2 self-start sm:self-center">
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploadingImage}
+                className="px-3.5 py-2 text-xs font-semibold text-white bg-sky-600 hover:bg-sky-500 rounded-xl transition flex items-center gap-1.5 shadow-xs disabled:opacity-50"
+              >
+                {uploadingImage ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <span>Uploading...</span>
+                  </>
+                ) : (
+                  <>
+                    <UploadCloud className="w-3.5 h-3.5" />
+                    <span>{user?.profileImage ? 'Change from Gallery' : 'Upload from Gallery'}</span>
+                  </>
+                )}
+              </button>
+
+              {user?.profileImage && (
+                <button
+                  type="button"
+                  onClick={handleRemovePhoto}
+                  disabled={uploadingImage}
+                  className="px-3 py-2 text-xs font-semibold text-rose-600 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-xl transition flex items-center gap-1 disabled:opacity-50"
+                  title="Remove current photo"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Remove</span>
+                </button>
+              )}
+            </div>
+          </div>
+
           {/* Name Field with Edit Mode */}
           <div className="p-4 bg-slate-50 border border-slate-200/80 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div className="space-y-1 flex-1">

@@ -128,8 +128,12 @@ const Navbar = () => {
                       : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/70'
                   }`}
                 >
-                  <div className="w-6 h-6 rounded-lg bg-gradient-to-tr from-sky-500 to-indigo-600 text-white font-bold text-[11px] flex items-center justify-center shadow-xs ring-2 ring-white">
-                    {userInitial}
+                  <div className="w-6 h-6 rounded-lg bg-gradient-to-tr from-sky-500 to-indigo-600 text-white font-bold text-[11px] flex items-center justify-center shadow-xs ring-2 ring-white overflow-hidden shrink-0">
+                    {user?.profileImage ? (
+                      <img src={user.profileImage} alt={user?.name || 'User'} className="w-full h-full object-cover" />
+                    ) : (
+                      userInitial
+                    )}
                   </div>
                   <span>Profile</span>
                 </Link>
@@ -180,8 +184,12 @@ const Navbar = () => {
           {/* Mobile Menu Toggle Button */}
           <div className="flex items-center md:hidden gap-2">
             {isAuthenticated && (
-              <div className="w-7 h-7 rounded-lg bg-gradient-to-tr from-sky-500 to-indigo-600 text-white font-bold text-xs flex items-center justify-center">
-                {userInitial}
+              <div className="w-7 h-7 rounded-lg bg-gradient-to-tr from-sky-500 to-indigo-600 text-white font-bold text-xs flex items-center justify-center overflow-hidden shrink-0">
+                {user?.profileImage ? (
+                  <img src={user.profileImage} alt={user?.name || 'User'} className="w-full h-full object-cover" />
+                ) : (
+                  userInitial
+                )}
               </div>
             )}
             <button
@@ -252,7 +260,13 @@ const Navbar = () => {
                   isProfileActive ? 'bg-sky-50 text-sky-700 font-bold' : 'text-slate-700 hover:bg-slate-100'
                 }`}
               >
-                <User className="w-4 h-4 text-sky-600" />
+                <div className="w-4 h-4 rounded-full overflow-hidden shrink-0 flex items-center justify-center">
+                  {user?.profileImage ? (
+                    <img src={user.profileImage} alt="User" className="w-full h-full object-cover" />
+                  ) : (
+                    <User className="w-4 h-4 text-sky-600" />
+                  )}
+                </div>
                 <span>My Profile</span>
               </Link>
 

@@ -134,11 +134,12 @@ const getMe = asyncHandler(async (req, res) => {
  * @access  Protected
  */
 const updateProfile = asyncHandler(async (req, res) => {
-  const { name } = req.body;
-  if (!name || !name.trim()) {
+  const { name, profileImage } = req.body;
+
+  if ((name === undefined || !name.trim()) && profileImage === undefined) {
     return res.status(400).json({
       success: false,
-      message: 'Name is required'
+      message: 'Name or profile image is required to update profile'
     });
   }
 
@@ -150,7 +151,14 @@ const updateProfile = asyncHandler(async (req, res) => {
     });
   }
 
-  user.name = name.trim();
+  if (name && name.trim()) {
+    user.name = name.trim();
+  }
+
+  if (profileImage !== undefined) {
+    user.profileImage = profileImage;
+  }
+
   await user.save();
 
   return res.status(200).json({

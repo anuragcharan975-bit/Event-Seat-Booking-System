@@ -24,6 +24,10 @@ const userSchema = new mongoose.Schema(
       type: String,
       required: [true, 'Password hash is required']
     },
+    profileImage: {
+      type: String,
+      default: ''
+    },
     role: {
       type: String,
       enum: ['user', 'admin', 'staff'],
@@ -48,6 +52,7 @@ userSchema.methods.toSafeObject = function () {
     _id: this._id,
     name: this.name,
     email: this.email,
+    profileImage: this.profileImage || '',
     role: this.role || 'user',
     createdAt: this.createdAt,
     updatedAt: this.updatedAt
